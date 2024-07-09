@@ -1,4 +1,5 @@
 import asyncio
+import gzip
 import json
 import logging
 import os
@@ -12,8 +13,7 @@ from config import *
 class BybitWebSocketClient:
     def __init__(self):
         self.ws = None
-        self.price_data = []
-        self.last_save_time = datetime.now()
+        self.price_data_file = os.path.join(WS_DIR_PATH, 'price_data.json.gz')
 
     def handle_ticker(self, message):
         try:
@@ -22,47 +22,25 @@ class BybitWebSocketClient:
             
             price_entry = {
                 'timestamp': timestamp,
-                'price': current_price
+                'price': current_price,
+                'full_data': message  # Store the full message
             }
             
-            self.price_data.append(price_entry)
+            self.save_price_data(price_entry)
 
-            # Save data every SAVE_INTERVAL seconds
-            current_time = datetime.now()
-            if (current_time - self.last_save_time).total_seconds() >= SAVE_INTERVAL:
-                self.save_price_data()
-                self.last_save_time = current_time
 
         except KeyError:
             logging.error(f"Unexpected message format: {message}")
         except Exception as e:
             logging.error(f"Error in handle_ticker: {str(e)}")
 
-    def save_price_data(self):
-        if self.price_data:
-            filepath = os.path.join(WS_DIR_PATH, 'price_data.json')
-
-            try:
-                # Read existing data
-                if os.path.exists(filepath):
-                    with open(filepath, 'r') as f:
-                        existing_data = json.load(f)
-                else:
-                    existing_data = []
-
-                # Append new data
-                existing_data.extend(self.price_data)
-
-                # Write updated data
-                with open(filepath, 'w') as f:
-                    json.dump(existing_data, f, indent=2)
-                # Clear the price_data list after saving
-                self.price_data = []
-
-            except Exception as e:
-                logging.error(f"Error saving price data: {str(e)}")
-        else:
-            logging.warning("No new price data to save")
+    def save_price_data(self, price_entry):
+        try:
+            with gzip.open(self.price_data_file, 'at') as f:
+                json_data = json.dumps(price_entry)
+                f.write(json_data + '\n')
+        except Exception as e:
+            logging.error(f"Error saving price data: {str(e)}")
 
     async def run(self):
         try:
@@ -70,10 +48,10 @@ class BybitWebSocketClient:
                 testnet=TESTNET,
                 channel_type="linear",
             )
-
+            
             # Subscribe to ticker stream
             self.ws.ticker_stream(symbol=SYMBOL, callback=self.handle_ticker)
-
+            
             while True:
                 await asyncio.sleep(1)
 
