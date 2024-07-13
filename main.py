@@ -1,10 +1,10 @@
 import asyncio
+import json
 import logging
-import lzma
 import os
 from datetime import datetime
+from pathlib import Path
 
-import msgpack
 from pybit.unified_trading import WebSocket
 
 from config import *
@@ -13,7 +13,10 @@ from config import *
 class BybitWebSocketClient:
     def __init__(self):
         self.ws = None
-        self.price_data_file = os.path.join(WS_DIR_PATH, 'price_data.xz')
+        self.price_data_file = Path(WS_DIR_PATH) / 'price_data.jsonl'
+        self.temp_file = Path(WS_DIR_PATH) / 'price_data_temp.jsonl'
+        self.last_flush_time = datetime.now()
+        self.data_buffer = []
 
     def handle_ticker(self, message):
         try:
@@ -26,22 +29,45 @@ class BybitWebSocketClient:
                 'full_data': message
             }
             
-            self.save_price_data(price_entry)
+            self.data_buffer.append(price_entry)
             
-
-
+            if len(self.data_buffer) >= BUFFER_SIZE or (datetime.now() - self.last_flush_time).seconds >= FLUSH_INTERVAL:
+                self.save_price_data()
+        
         except KeyError:
             logging.error(f"Unexpected message format: {message}")
         except Exception as e:
             logging.error(f"Error in handle_ticker: {str(e)}")
 
-    def save_price_data(self, price_entry):
+    def save_price_data(self):
+        if not self.data_buffer:
+            return
+
         try:
-            with lzma.open(self.price_data_file, 'ab') as f:
-                packed_data = msgpack.packb(price_entry)
-                f.write(packed_data)
+            # Append to the main file
+            with open(self.price_data_file, 'a') as f:
+                for entry in self.data_buffer:
+                    json.dump(entry, f)
+                    f.write('\n')
+                f.flush()
+                os.fsync(f.fileno())
+
+            # Check if rotation is needed
+            if self.price_data_file.stat().st_size > MAX_FILE_SIZE:
+                self.rotate_files()
+
+            self.data_buffer.clear()
+            self.last_flush_time = datetime.now()
+            logging.info(f"Saved {len(self.data_buffer)} entries to {self.price_data_file}")
+
         except Exception as e:
             logging.error(f"Error saving price data: {str(e)}")
+
+    def rotate_files(self):
+        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
+        new_file = self.price_data_file.with_name(f"price_data_{timestamp}.jsonl")
+        self.price_data_file.rename(new_file)
+        logging.info(f"Rotated file to {new_file}")
 
     async def run(self):
         try:
@@ -55,7 +81,7 @@ class BybitWebSocketClient:
             
             while True:
                 await asyncio.sleep(1)
-
+        
         except Exception as e:
             logging.error(f"WebSocket error: {str(e)}")
             print(f"WebSocket error: {str(e)}")

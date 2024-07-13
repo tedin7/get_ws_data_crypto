@@ -1,10 +1,8 @@
 import logging
 import os
 
-# Constants
+# Bybit API settings
 SYMBOL = "BTCUSDT"
-
-# Bybit API credentials (use testnet for safety)
 API_KEY = "T8ksX7XSqTdefANefT"
 API_SECRET = "c2MVn4vmpXuf8uyudChEh2bHy3c3WF56B4Ez"
 TESTNET = False
@@ -26,5 +24,19 @@ logging.basicConfig(
     datefmt='%Y-%m-%d %H:%M:%S'
 )
 
+# Data saving configuration
+BUFFER_SIZE = 100  # Number of entries to buffer before writing
+FLUSH_INTERVAL = 60  # Maximum time (in seconds) between writes
+MAX_FILE_SIZE = 100 * 1024 * 1024  # 100 MB, adjust as needed
+
 # WebSocket configuration
-SAVE_INTERVAL = 1  # Save data every 5 minutes (300 seconds)
+WS_PING_INTERVAL = 30  # Ping the server every 30 seconds
+WS_PING_TIMEOUT = 10  # Wait 10 seconds for a pong before considering the connection dead
+WS_RECONNECT_DELAY = 5  # Wait 5 seconds before attempting to reconnect
+
+# Error handling
+MAX_RECONNECT_ATTEMPTS = 5  # Maximum number of reconnection attempts before giving up
+ERROR_COOLDOWN_TIME = 300  # Wait 5 minutes (300 seconds) after max reconnect attempts before trying again
+
+# Performance monitoring
+PERFORMANCE_LOG_INTERVAL = 3600  # Log performance stats every hour (3600 seconds)
