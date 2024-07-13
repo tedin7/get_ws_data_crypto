@@ -2,7 +2,7 @@ import asyncio
 import json
 import logging
 import os
-from datetime import datetime
+from datetime import datetime, timedelta
 from pathlib import Path
 
 from pybit.unified_trading import WebSocket
@@ -13,10 +13,21 @@ from config import *
 class BybitWebSocketClient:
     def __init__(self):
         self.ws = None
-        self.price_data_file = Path(WS_DIR_PATH) / 'price_data.jsonl'
-        self.temp_file = Path(WS_DIR_PATH) / 'price_data_temp.jsonl'
-        self.last_flush_time = datetime.now()
+        self.current_file = None
+        self.current_date = None
         self.data_buffer = []
+        self.ensure_data_directory()
+
+    def ensure_data_directory(self):
+        Path(WS_DIR_PATH).mkdir(parents=True, exist_ok=True)
+
+    def get_current_file(self):
+        current_date = datetime.now().date()
+        if self.current_date != current_date:
+            self.current_date = current_date
+            file_name = f'price_data_{self.current_date.isoformat()}.jsonl'
+            self.current_file = Path(WS_DIR_PATH) / file_name
+        return self.current_file
 
     def handle_ticker(self, message):
         try:
@@ -44,30 +55,20 @@ class BybitWebSocketClient:
             return
 
         try:
-            # Append to the main file
-            with open(self.price_data_file, 'a') as f:
+            current_file = self.get_current_file()
+            with current_file.open('a') as f:
                 for entry in self.data_buffer:
                     json.dump(entry, f)
                     f.write('\n')
                 f.flush()
                 os.fsync(f.fileno())
 
-            # Check if rotation is needed
-            if self.price_data_file.stat().st_size > MAX_FILE_SIZE:
-                self.rotate_files()
-
             self.data_buffer.clear()
             self.last_flush_time = datetime.now()
-            logging.info(f"Saved {len(self.data_buffer)} entries to {self.price_data_file}")
+            logging.info(f"Saved {len(self.data_buffer)} entries to {current_file}")
 
         except Exception as e:
             logging.error(f"Error saving price data: {str(e)}")
-
-    def rotate_files(self):
-        timestamp = datetime.now().strftime("%Y%m%d%H%M%S")
-        new_file = self.price_data_file.with_name(f"price_data_{timestamp}.jsonl")
-        self.price_data_file.rename(new_file)
-        logging.info(f"Rotated file to {new_file}")
 
     async def run(self):
         try:
