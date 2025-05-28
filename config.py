@@ -19,7 +19,7 @@ LOG_FILE = os.path.join(LOG_DIR, 'ws_log.log')
 
 logging.basicConfig(
     filename=LOG_FILE,
-    level=logging.INFO,
+    level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s',
     datefmt='%Y-%m-%d %H:%M:%S'
 )

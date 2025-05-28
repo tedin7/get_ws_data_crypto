@@ -1,5 +1,3 @@
 ws_data/
 venv/
-tests/
-config.py
-email_config.py 
+tests/ 
