@@ -3,8 +3,8 @@ import os
 
 # Bybit API settings
 SYMBOL = "BTCUSDT"
-API_KEY = "NjBO12COLPUOEHCAkR"
-API_SECRET = "jIVi1LE3TwCnworOqpzqesAQyodDuWbO2t64"
+API_KEY = os.environ.get("API_KEY")
+API_SECRET = os.environ.get("API_SECRET")
 TESTNET = False
 
 # Directory setup
