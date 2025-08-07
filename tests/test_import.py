@@ -52,6 +52,11 @@ def test_file_import(file_path, module_name):
 if __name__ == "__main__":
     print("\n=== Testing Imports ===\n")
     
+    # Ensure project root is on sys.path to import config and main
+    project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+    if project_root not in sys.path:
+        sys.path.insert(0, project_root)
+    
     # Test importing required modules
     required_modules = [
         "requests",
@@ -59,13 +64,8 @@ if __name__ == "__main__":
         "websocket",  # websocket-client module is imported as 'websocket'
         "prometheus_client",
         "psutil",
-        "hmac",
-        "hashlib",
         "json",
         "datetime",
-        "smtplib",
-        "email.mime.text",
-        "email.mime.multipart"
     ]
     
     all_modules_imported = True
@@ -76,7 +76,6 @@ if __name__ == "__main__":
     # Test importing our own modules
     our_modules = [
         ("config.py", "config"),
-        ("api_key_checker.py", "api_key_checker"),
         ("main.py", "main")
     ]
     
@@ -95,4 +94,4 @@ if __name__ == "__main__":
         sys.exit(0)
     else:
         print("\n❌ Some imports failed. Please check the logs for details.")
-        sys.exit(1) 
+        sys.exit(1 )

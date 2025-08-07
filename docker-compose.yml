@@ -1,26 +1,7 @@
-version: '3.8'
+version: "3.8"
 
 services:
-  getws-crypto:
-    image: getws-crypto:latest
-    container_name: getws-crypto-container
-    restart: unless-stopped
-    volumes:
-      - /root/get_ws_data_crypto/ws_data:/app/ws_data
-    environment:
-      # Replace with your actual values
-      - API_KEY=${API_KEY}
-      - API_SECRET=${API_SECRET}
-      - EMAIL_ENABLED=${EMAIL_ENABLED}
-      - RECEIVER_EMAIL=${RECEIVER_EMAIL}
-      - SENDER_EMAIL=${SENDER_EMAIL}
-      - EMAIL_PASSWORD=${EMAIL_PASSWORD} # Replace with your email app password if email is enabled
-    labels:
-      homepage.group: Crypto
-      homepage.name: Crypto Service
-      homepage.icon: mdi-chart-line
-      homepage.href: http://192.168.1.10:5000
-      homepage.description: Crypto Web Service
-# Remove the volumes section at the root as we are using a bind mount
-# volumes:
-#   getws-data-volume: 
+
+networks:
+  default:
+    name: get_ws_data_crypto_default

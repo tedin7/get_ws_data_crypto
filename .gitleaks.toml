@@ -1,0 +1,8 @@
+# Minimal gitleaks config
+# Uses default rules; add allowlist if you have known benign patterns.
+# See: https://github.com/gitleaks/gitleaks
+[allowlist]
+  description = \"Allow common false positives\"
+  regexes = [
+    \"(?i)dummy|example|sample|test\",
+  ]

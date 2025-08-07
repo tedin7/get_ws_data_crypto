@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """
-Test script to verify that the main functionality works with the updated API key checker.
-This script simulates the main functionality without actually running the WebSocket connection.
+Test script to verify main functionality assumptions in PUBLIC mode.
+This simulates steps without actually running the WebSocket connection.
 """
 
 import os
@@ -17,8 +17,7 @@ import pkg_resources
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # Import the necessary modules
-from config import API_KEY, API_SECRET, SYMBOL, TESTNET
-from api_key_checker import check_api_key_expiration
+from config import SYMBOL, TESTNET
 
 # Setup logging
 logging.basicConfig(
@@ -32,31 +31,18 @@ async def test_main_functionality():
     """Test the main functionality without actually running the WebSocket connection"""
     logger.info("Starting test of main functionality")
     
-    # Step 1: Check API key expiration
-    logger.info("Step 1: Checking API key expiration")
-    api_key_valid = check_api_key_expiration()
-    
-    if api_key_valid:
-        logger.info("API key is valid and not expiring soon")
-    else:
-        logger.warning("API key check failed or key is expiring soon")
-    
-    # Step 2: Simulate WebSocket connection setup
-    logger.info("Step 2: Simulating WebSocket connection setup")
+    # Step 1: Simulate WebSocket connection setup (public mode)
+    logger.info("Step 1: Simulating WebSocket connection setup (public mode)")
     logger.info(f"Would connect to Bybit WebSocket API with testnet={TESTNET}")
     logger.info(f"Would subscribe to ticker stream for symbol {SYMBOL}")
     
-    # Step 3: Simulate data collection
-    logger.info("Step 3: Simulating data collection")
+    # Step 2: Simulate data collection
+    logger.info("Step 2: Simulating data collection")
     logger.info("Would collect price data and save to file")
     
-    # Step 4: Simulate reconnection logic
-    logger.info("Step 4: Simulating reconnection logic")
+    # Step 3: Simulate reconnection logic
+    logger.info("Step 3: Simulating reconnection logic")
     logger.info("Would implement reconnection logic if WebSocket connection fails")
-    
-    # Step 5: Simulate API key check thread
-    logger.info("Step 5: Simulating API key check thread")
-    logger.info("Would start a thread to check API key expiration daily")
     
     logger.info("Test of main functionality completed successfully")
     return True
@@ -107,7 +93,7 @@ if __name__ == "__main__":
     if not venv_result:
         print("\n❌ Virtual environment is missing required dependencies")
         print("Please install the missing dependencies with:")
-        print("source venv/bin/activate && pip install -r requirements.txt")
+        print("source .venv/bin/activate && pip install -r requirements.txt")
         sys.exit(1)
     
     # Test main functionality

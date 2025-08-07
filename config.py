@@ -1,10 +1,8 @@
 import logging
 import os
 
-# Bybit API settings
+# Bybit public settings
 SYMBOL = "BTCUSDT"
-API_KEY = os.environ.get("API_KEY")
-API_SECRET = os.environ.get("API_SECRET")
 TESTNET = False
 
 # Directory setup

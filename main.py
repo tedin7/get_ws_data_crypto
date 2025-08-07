@@ -10,7 +10,6 @@ import threading
 from pybit.unified_trading import WebSocket
 
 from config import *
-from api_key_checker import check_api_key_expiration
 
 # Setup logging
 logging.basicConfig(
@@ -27,11 +26,11 @@ class BybitWebSocketClient:
         self.current_date = None
         self.data_buffer = []
         self.last_flush_time = datetime.now()
-        self.last_api_check_time = datetime.now()
         self.ensure_data_directory()
         
-        # Start API key check thread
-        self.start_api_key_check_thread()
+        # Public mode only
+        logging.info("Startup mode: PUBLIC (no API keys)")
+        logging.info("Public mode detected. No API key checks or email alerts will be used.")
 
     def ensure_data_directory(self):
         Path(WS_DIR_PATH).mkdir(parents=True, exist_ok=True)
@@ -88,42 +87,23 @@ class BybitWebSocketClient:
         except Exception as e:
             logging.error(f"Error saving price data: {str(e)}")
 
-    def start_api_key_check_thread(self):
-        """Start a thread to check API key expiration daily"""
-        def api_key_check_worker():
-            while True:
-                # Check API key expiration
-                logging.info("Running scheduled API key expiration check")
-                check_api_key_expiration()
-                
-                # Sleep for 24 hours (86400 seconds)
-                time.sleep(86400)
-        
-        # Create and start the thread
-        api_check_thread = threading.Thread(target=api_key_check_worker, daemon=True)
-        api_check_thread.start()
-        logging.info("API key check thread started")
-
     async def run(self):
-        # Initial API key check before starting WebSocket
-        logging.info("Performing initial API key check before starting WebSocket")
-        api_key_valid = check_api_key_expiration()
-        
-        if not api_key_valid:
-            logging.warning("API key validation failed. Continuing anyway but may encounter issues.")
-        
+        # Public mode: no API key checks
+        logging.info("Public mode: starting WebSocket without authentication")
+
         reconnect_attempts = 0
         
         while True:
             try:
+                # Public WebSocket (no credentials)
+                logging.info("Initializing public WebSocket (no credentials)")
                 self.ws = WebSocket(
                     testnet=TESTNET,
                     channel_type="linear",
-                    api_key=API_KEY,
-                    api_secret=API_SECRET,
                 )
                 
-                # Subscribe to ticker stream
+                # Subscribe to ticker stream (public topic)
+                logging.info(f"Subscribing to public ticker stream for symbol: {SYMBOL}")
                 self.ws.ticker_stream(symbol=SYMBOL, callback=self.handle_ticker)
                 
                 # Reset reconnect attempts on successful connection

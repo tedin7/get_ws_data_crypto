@@ -14,6 +14,11 @@ from datetime import datetime
 from pathlib import Path
 import json
 
+# Ensure project root on sys.path to import config
+project_root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+if project_root not in sys.path:
+    sys.path.insert(0, project_root)
+
 # Setup logging
 logging.basicConfig(
     level=logging.INFO,
@@ -23,8 +28,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 # Import the necessary modules
-from config import API_KEY, API_SECRET, SYMBOL, TESTNET, WS_DIR_PATH, BUFFER_SIZE, FLUSH_INTERVAL
-from api_key_checker import check_api_key_expiration
+from config import SYMBOL, TESTNET, WS_DIR_PATH, BUFFER_SIZE, FLUSH_INTERVAL
 
 class MockWebSocketClient:
     """Mock WebSocket client to test the main functionality without connecting to Bybit"""
@@ -36,8 +40,9 @@ class MockWebSocketClient:
         self.last_flush_time = datetime.now()
         self.ensure_data_directory()
         
+        # Public mode only: no API key checks
         # Start API key check thread
-        self.start_api_key_check_thread()
+        # self.start_api_key_check_thread()
 
     def ensure_data_directory(self):
         """Ensure the data directory exists"""
@@ -107,7 +112,6 @@ class MockWebSocketClient:
         def api_key_check_worker():
             logger.info("API key check thread started")
             # Check API key expiration once
-            check_api_key_expiration()
             logger.info("API key check completed")
         
         # Create and start the thread
@@ -145,25 +149,16 @@ async def test_main_functionality():
     """Test the main functionality without actually running the WebSocket connection"""
     logger.info("Starting test of main functionality")
     
-    # Step 1: Check API key expiration
-    logger.info("Step 1: Checking API key expiration")
-    api_key_valid = check_api_key_expiration()
-    
-    if api_key_valid:
-        logger.info("API key is valid and not expiring soon")
-    else:
-        logger.warning("API key check failed or key is expiring soon")
-    
-    # Step 2: Create a mock WebSocket client
-    logger.info("Step 2: Creating mock WebSocket client")
+    # Step 1: Create a mock WebSocket client
+    logger.info("Step 1: Creating mock WebSocket client (public mode)")
     client = MockWebSocketClient()
     
-    # Step 3: Simulate receiving data
-    logger.info("Step 3: Simulating data reception")
+    # Step 2: Simulate receiving data
+    logger.info("Step 2: Simulating data reception")
     client.simulate_data(num_messages=5)
     
-    # Step 4: Check if data was saved correctly
-    logger.info("Step 4: Checking if data was saved correctly")
+    # Step 3: Check if data was saved correctly
+    logger.info("Step 3: Checking if data was saved correctly")
     current_file = client.get_current_file()
     
     if current_file.exists():
@@ -200,4 +195,4 @@ if __name__ == "__main__":
         print("\n❌ Main functionality test failed")
         sys.exit(1)
     
-    print("\nTest completed successfully") 
+    print("\nTest completed successfully ")
