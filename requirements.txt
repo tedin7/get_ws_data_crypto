@@ -1,5 +1,5 @@
 # Minimal runtime requirements for public websocket mode
-pybit==5.8.0
+pybit==5.11.0
 requests==2.32.4
 websocket-client==1.8.0
 psutil==7.0.0
