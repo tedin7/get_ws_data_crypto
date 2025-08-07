@@ -3,7 +3,7 @@ import time
 import lzma
 import hashlib
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Optional, Tuple
 
@@ -31,8 +31,8 @@ logging.basicConfig(
 CHUNK_SIZE = 4 * 1024 * 1024  # 4 MiB
 
 
-def _now() -> datetime:
-    return datetime.utcnow()
+def _now():
+    return datetime.now(timezone.utc)
 
 
 def compute_sha256(path: Path) -> Tuple[str, int]:
@@ -111,7 +111,7 @@ def is_eligible(jsonl_path: Path, keep_days: int, min_age_minutes: int) -> bool:
         stat = jsonl_path.stat()
     except FileNotFoundError:
         return False
-    mtime = datetime.fromtimestamp(stat.st_mtime)
+    mtime = datetime.fromtimestamp(stat.st_mtime, timezone.utc)
     age = _now() - mtime
     if age < timedelta(minutes=min_age_minutes):
         return False
@@ -176,8 +176,17 @@ def process_file(src_jsonl_path: Path) -> str:
             except Exception as e:
                 logging.error(f"Error inspecting partial archive {xz_tmp_path}: {e}")
 
-        # Ensure original hash exists or compute it
-        if jsonl_hash_path.exists():
+        # Initialize and, if present, load existing digest from the adjacent .sha256 file
+        hex_digest = None
+        if os.path.exists(jsonl_hash_path):
+            with open(jsonl_hash_path, "r") as hf:
+                content = hf.read().strip()
+                if content:
+                    hex_digest = content
+
+        if hex_digest:  # Cached
+            logging.debug(f"Using cached hash for {jsonl_hash_path}")
+        else:  # Preserve original hex_digest variable name for downstream logic
             parsed = parse_hash_file(jsonl_hash_path)
             if not parsed:
                 # re-compute if parse failed
@@ -185,19 +194,6 @@ def process_file(src_jsonl_path: Path) -> str:
                 write_hash_file(src_jsonl_path, hex_digest, size_bytes)
             else:
                 hex_digest, _size_bytes = parsed
-        else:
-            hex_digest, size_bytes = compute_sha256(src_jsonl_path)
-            write_hash_file(src_jsonl_path, hex_digest, size_bytes)
-
-        # Might have been set in parsed branch
-        try:
-            hex_digest  # noqa: F401
-        except NameError:
-            parsed2 = parse_hash_file(jsonl_hash_path)
-            if not parsed2:
-                logging.error(f"Unable to determine original hash for {src_jsonl_path}")
-                return "FAILED"
-            hex_digest, _ = parsed2
 
         # If archive already exists, verify and delete original if valid
         if xz_path.exists():

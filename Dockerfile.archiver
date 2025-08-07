@@ -1,0 +1,25 @@
+# syntax=docker/dockerfile:1
+FROM python:3.11-slim
+
+WORKDIR /app
+
+# Install system utilities for compression and timezones (xz-utils for .xz)
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
+    xz-utils ca-certificates tzdata \
+ && rm -rf /var/lib/apt/lists/*
+
+# Copy only requirements first for better caching
+COPY requirements.txt /app/requirements.txt
+
+# Install Python dependencies
+RUN pip install --no-cache-dir -r /app/requirements.txt
+
+# Copy project files
+COPY . /app
+
+# Ensure unbuffered logs
+ENV PYTHONUNBUFFERED=1
+ENV TZ=UTC
+
+# Default command: run archiver
+CMD ["python", "-u", "archiver.py"]

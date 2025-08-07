@@ -1,7 +1,31 @@
-version: "3.8"
-
+# Replace entire file with a valid compose spec for the public-only Python app
+version: "3.9"
 services:
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: ["python", "-u", "main.py"]
+    volumes:
+      - .:/app
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "python", "-c", "import os,sys; sys.exit(0)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
 
-networks:
-  default:
-    name: get_ws_data_crypto_default
+  archiver:
+    build:
+      context: .
+      dockerfile: Dockerfile.archiver
+    working_dir: /app
+    volumes:
+      - ./:/app
+      - ./ws_data:/app/ws_data
+    environment:
+      PYTHONUNBUFFERED: "1"
+      TZ: "UTC"
+    command: ["python", "-u", "archiver.py"]
+    restart: unless-stopped
