@@ -129,6 +129,18 @@ class BybitWebSocketClient:
                     await asyncio.sleep(ERROR_COOLDOWN_TIME)
                     reconnect_attempts = 0
 
+def healthcheck():
+    # Return True if runtime appears healthy; minimal check:
+    # - data directory exists
+    # - SYMBOL is a non-empty string
+    # More elaborate checks would require internal state.
+    try:
+        import os
+        from config import WS_DIR_PATH, SYMBOL
+        return bool(SYMBOL) and os.path.isdir(WS_DIR_PATH)
+    except Exception:
+        return False
+
 if __name__ == "__main__":
     client = BybitWebSocketClient()
     asyncio.run(client.run())

@@ -1,6 +1,6 @@
 # Security Policy
 
-Reporting a Vulnerability
+## Reporting a Vulnerability
 - Please email the maintainers with a clear description and reproduction steps.
 - Do not open public issues for security reports.
 - Do not include secrets, PII, or real credentials in any report.

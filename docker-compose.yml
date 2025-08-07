@@ -1,4 +1,4 @@
-# Replace entire file with a valid compose spec for the public-only Python app
+# Docker Compose configuration for the public Bybit websocket app (app) and data archiver (archiver).
 version: "3.9"
 services:
   app:
@@ -11,10 +11,11 @@ services:
     env_file:
       - .env
     healthcheck:
-      test: ["CMD", "python", "-c", "import os,sys; sys.exit(0)"]
+      test: ["CMD-SHELL", "python -c \"import sys; import main as m; sys.exit(0 if getattr(m, 'healthcheck', lambda: False)() else 1)\""]
       interval: 30s
-      timeout: 5s
-      retries: 3
+      timeout: 10s
+      retries: 5
+      start_period: 30s
 
   archiver:
     build:
