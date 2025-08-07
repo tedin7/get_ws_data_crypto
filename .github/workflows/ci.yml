@@ -76,10 +76,10 @@ jobs:
 
       - name: Gitleaks scan
         uses: gitleaks/gitleaks-action@v2
-        with:
-          args: detect --source . --report-format sarif --report-path gitleaks.sarif
-          token: ${{ secrets.GITHUB_TOKEN }}
-          config-path: .gitleaks.toml
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITLEAKS_REPORT_FORMAT: sarif
+          GITLEAKS_REPORT_PATH: gitleaks.sarif
 
       - name: Upload SARIF
         if: ${{ hashFiles('gitleaks.sarif') != '' }}
