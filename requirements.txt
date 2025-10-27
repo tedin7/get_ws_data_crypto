@@ -2,7 +2,7 @@
 pybit==5.11.0
 requests==2.32.4
 websocket-client==1.8.0
-psutil==7.0.0
+psutil==7.1.2
 prometheus-client==0.22.1
 msgpack==1.1.1
 pycryptodome==3.23.0
