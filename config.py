@@ -1,4 +1,3 @@
-import logging
 import os
 
 # Bybit public settings
@@ -10,17 +9,10 @@ WS_DIR = 'ws_data'
 WS_DIR_PATH = os.path.abspath(WS_DIR)
 os.makedirs(WS_DIR, exist_ok=True)
 
-# Logging configuration
+# Logging — directories only; logging.basicConfig is called in main.py
 LOG_DIR = os.path.join(WS_DIR, 'logs')
 os.makedirs(LOG_DIR, exist_ok=True)
 LOG_FILE = os.path.join(LOG_DIR, 'ws_log.log')
-
-logging.basicConfig(
-    filename=LOG_FILE,
-    level=logging.DEBUG,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
-)
 
 # Data saving configuration
 BUFFER_SIZE = 100  # Number of entries to buffer before writing

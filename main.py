@@ -11,12 +11,18 @@ from pybit.unified_trading import WebSocket
 
 from config import *
 
-# Setup logging
+# Setup logging — file + stdout so docker logs works
+log_format = '%(asctime)s - %(levelname)s - %(message)s'
+log_datefmt = '%Y-%m-%d %H:%M:%S'
+
 logging.basicConfig(
-    filename=os.path.join(WS_DIR, 'logs', 'ws_log.log'),
     level=logging.INFO,
-    format='%(asctime)s - %(levelname)s - %(message)s',
-    datefmt='%Y-%m-%d %H:%M:%S'
+    format=log_format,
+    datefmt=log_datefmt,
+    handlers=[
+        logging.FileHandler(os.path.join(WS_DIR, 'logs', 'ws_log.log')),
+        logging.StreamHandler(),
+    ],
 )
 
 class BybitWebSocketClient:
@@ -92,7 +98,7 @@ class BybitWebSocketClient:
         logging.info("Public mode: starting WebSocket without authentication")
 
         reconnect_attempts = 0
-        
+
         while True:
             try:
                 # Public WebSocket (no credentials)
@@ -101,33 +107,55 @@ class BybitWebSocketClient:
                     testnet=TESTNET,
                     channel_type="linear",
                 )
-                
+
                 # Subscribe to ticker stream (public topic)
                 logging.info(f"Subscribing to public ticker stream for symbol: {SYMBOL}")
                 self.ws.ticker_stream(symbol=SYMBOL, callback=self.handle_ticker)
-                
+
                 # Reset reconnect attempts on successful connection
                 reconnect_attempts = 0
-                
-                # Keep the connection alive
+                last_data_time = datetime.now()
+
+                # Keep the connection alive, but detect dead connections.
+                # pybit's internal reconnect can silently give up after DNS
+                # failures (all retries fire within ~1s, exhaust limit, then
+                # the exception is raised in pybit's thread — never reaches
+                # our except block).  We poll is_connected() to catch this.
                 while True:
-                    await asyncio.sleep(1)
-            
+                    await asyncio.sleep(5)
+
+                    # Check if pybit still has a live socket
+                    if not self.ws.is_connected():
+                        logging.warning("WebSocket disconnected (is_connected=False), triggering reconnect")
+                        break
+
+                    # Track data freshness — if no data for 60s the stream is stale
+                    if self.data_buffer or self.last_flush_time > last_data_time:
+                        last_data_time = datetime.now()
+                    elif (datetime.now() - last_data_time).total_seconds() > 60:
+                        logging.warning("No data received for 60s, triggering reconnect")
+                        break
+
             except Exception as e:
                 logging.error(f"WebSocket error: {str(e)}")
-                print(f"WebSocket error: {str(e)}")
-                
-                # Implement reconnection logic
-                reconnect_attempts += 1
-                
-                if reconnect_attempts <= MAX_RECONNECT_ATTEMPTS:
-                    wait_time = WS_RECONNECT_DELAY
-                    logging.info(f"Attempting to reconnect in {wait_time} seconds (attempt {reconnect_attempts}/{MAX_RECONNECT_ATTEMPTS})")
-                    await asyncio.sleep(wait_time)
-                else:
-                    logging.error(f"Maximum reconnection attempts reached. Waiting for {ERROR_COOLDOWN_TIME} seconds before trying again")
-                    await asyncio.sleep(ERROR_COOLDOWN_TIME)
-                    reconnect_attempts = 0
+
+            # Clean up old connection before reconnecting
+            if self.ws:
+                try:
+                    self.ws.exit()
+                except Exception:
+                    pass
+                self.ws = None
+
+            reconnect_attempts += 1
+            if reconnect_attempts <= MAX_RECONNECT_ATTEMPTS:
+                wait_time = WS_RECONNECT_DELAY * reconnect_attempts
+                logging.info(f"Reconnecting in {wait_time}s (attempt {reconnect_attempts}/{MAX_RECONNECT_ATTEMPTS})")
+                await asyncio.sleep(wait_time)
+            else:
+                logging.error(f"Max reconnect attempts reached. Cooling down for {ERROR_COOLDOWN_TIME}s")
+                await asyncio.sleep(ERROR_COOLDOWN_TIME)
+                reconnect_attempts = 0
 
 def healthcheck():
     # Return True if runtime appears healthy; minimal check:
