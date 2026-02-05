@@ -1,12 +1,12 @@
 # Minimal runtime requirements for public websocket mode
-pybit==5.11.0
-requests==2.32.4
-websocket-client==1.8.0
-psutil==7.0.0
-prometheus-client==0.22.1
-msgpack==1.1.1
+pybit==5.13.0
+requests==2.32.5
+websocket-client==1.9.0
+psutil==7.2.2
+prometheus-client==0.24.1
+msgpack==1.1.2
 pycryptodome==3.23.0
-charset-normalizer==3.4.2
-idna==3.10
-urllib3==2.3.0
-certifi==2025.8.3
+charset-normalizer==3.4.4
+idna==3.11
+urllib3==2.6.3
+certifi==2026.1.4
