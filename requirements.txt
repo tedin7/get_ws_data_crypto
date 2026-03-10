@@ -3,7 +3,7 @@ pybit==5.11.0
 requests==2.32.4
 websocket-client==1.8.0
 psutil==7.0.0
-prometheus-client==0.22.1
+prometheus-client==0.23.1
 msgpack==1.1.1
 pycryptodome==3.23.0
 charset-normalizer==3.4.4
