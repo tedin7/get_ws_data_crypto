@@ -9,4 +9,4 @@ pycryptodome==3.23.0
 charset-normalizer==3.4.6
 idna==3.11
 urllib3==2.6.3
-certifi==2026.2.25
+certifi==2026.4.22
