@@ -7,6 +7,6 @@ prometheus-client==0.25.0
 msgpack==1.1.2
 pycryptodome==3.23.0
 charset-normalizer==3.4.7
-idna==3.11
+idna==3.17
 urllib3==2.6.3
 certifi==2026.4.22
