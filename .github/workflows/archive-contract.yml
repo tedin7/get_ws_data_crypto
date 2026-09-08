@@ -1,0 +1,28 @@
+name: Archive storage contract
+on:
+  push:
+    branches: [fix/docker-archive-contract-20260908]
+  pull_request:
+    branches: [main]
+permissions:
+  contents: read
+jobs:
+  exact-source:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          persist-credentials: false
+      - name: Export tracked source (no runtime archives or credentials)
+        run: |
+          git rev-parse HEAD > /tmp/source-revision.txt
+          git archive --format=zip HEAD > /tmp/source.zip
+      - uses: actions/upload-artifact@v4
+        with:
+          name: archive-contract-source-${{ github.sha }}
+          path: |
+            /tmp/source.zip
+            /tmp/source-revision.txt
+          retention-days: 2
