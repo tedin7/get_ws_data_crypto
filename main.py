@@ -13,6 +13,7 @@ from pybit.unified_trading import WebSocket
 
 from config import *
 from healthcheck import healthcheck
+from storage_protocol import AppendBatch, FileLock, recover_pending
 
 # Setup logging — file + stdout so docker logs works
 log_format = '%(asctime)s - %(levelname)s - %(message)s'
@@ -36,6 +37,10 @@ class BybitWebSocketClient:
         self.data_buffer = []
         self.last_flush_time = datetime.now()
         self.next_flush_attempt = 0.0
+        self._buffer_lock = threading.RLock()
+        self._owner = None
+        self._pending = None
+        self._pending_count = 0
         self.ensure_data_directory()
         
         # Public mode only
@@ -66,41 +71,66 @@ class BybitWebSocketClient:
                 'full_data': message
             }
             
-            self.data_buffer.append(price_entry)
+            with self._buffer_lock:
+                self.data_buffer.append(price_entry)
             
-            if time.monotonic() >= self.next_flush_attempt and (
-                len(self.data_buffer) >= BUFFER_SIZE
-                or (datetime.now() - self.last_flush_time).seconds >= FLUSH_INTERVAL
-            ):
-                self.save_price_data()
+                if time.monotonic() >= self.next_flush_attempt and (
+                    len(self.data_buffer) >= BUFFER_SIZE
+                    or (datetime.now() - self.last_flush_time).seconds >= FLUSH_INTERVAL
+                ):
+                    self.save_price_data()
         
         except KeyError:
             logging.error(f"Unexpected message format: {message}")
         except Exception as e:
             logging.error(f"Error in handle_ticker: {str(e)}")
 
+    def _acquire_ownership(self):
+        if self._owner is None:
+            owner = FileLock(Path(WS_DIR_PATH) / ".collector.lock")
+            try:
+                recovered = recover_pending(Path(WS_DIR_PATH))
+            except BaseException:
+                owner.close()
+                raise
+            self._owner = owner
+            if recovered:
+                logging.info("Recovered %d durable append batches", recovered)
+
     def save_price_data(self):
-        if not self.data_buffer:
-            return
-
-        try:
-            current_file = self.get_current_file()
-            with current_file.open('a') as f:
-                for entry in self.data_buffer:
-                    json.dump(entry, f)
-                    f.write('\n')
-                f.flush()
-                os.fsync(f.fileno())
-
-            data_count = len(self.data_buffer)
-            self.data_buffer.clear()
-            self.last_flush_time = datetime.now()
-            logging.info(f"Saved {data_count} entries to {current_file}")
-
-        except Exception as e:
-            # ponytail: prolonged errors grow the buffer; deduplication needs persistent, coordinated recovery.
-            self.next_flush_attempt = time.monotonic() + FLUSH_INTERVAL
-            logging.error(f"Error saving price data: {str(e)}")
+        with self._buffer_lock:
+            if not self.data_buffer:
+                return
+            try:
+                self._acquire_ownership()
+                # Finish an earlier batch on its ORIGINAL date before rotating.
+                # New callbacks are serialized and are never cleared by that commit.
+                while self.data_buffer:
+                    if self._pending is None:
+                        current_file = self.get_current_file()
+                        count = len(self.data_buffer)
+                        payload = b"".join(
+                            (json.dumps(entry, allow_nan=False) + "\n").encode("utf-8")
+                            for entry in self.data_buffer[:count]
+                        )
+                        self._pending = AppendBatch(current_file, payload)
+                        self._pending_count = count
+                    self._pending.commit()
+                    data_count = self._pending_count
+                    current_file = self._pending.source
+                    completed = self._pending
+                    self._pending = None
+                    self._pending_count = 0
+                    del self.data_buffer[:data_count]
+                    completed.close()
+                    self.last_flush_time = datetime.now()
+                    self.next_flush_attempt = 0.0
+                    logging.info("Saved %d entries to %s", data_count, current_file)
+            except Exception as e:
+                # The batch, buffer and file lock survive even a failed rollback.
+                # Memory-only ticks still need a separately authorized backpressure policy.
+                self.next_flush_attempt = time.monotonic() + FLUSH_INTERVAL
+                logging.error("Error saving price data: %s", e)
 
     def close(self):
         if self.ws:
@@ -110,6 +140,10 @@ class BybitWebSocketClient:
         self.save_price_data()
         if self.data_buffer:
             raise RuntimeError(f"Shutdown left {len(self.data_buffer)} unsaved entries")
+        if self._owner is not None:
+            owner = self._owner
+            self._owner = None
+            owner.close()
 
     async def run(self):
         # Public mode: no API key checks
@@ -118,6 +152,8 @@ class BybitWebSocketClient:
         reconnect_attempts = 0
 
         while True:
+            # Fail closed before connecting when ownership/recovery is unavailable.
+            self._acquire_ownership()
             try:
                 # Public WebSocket (no credentials)
                 logging.info("Initializing public WebSocket (no credentials)")

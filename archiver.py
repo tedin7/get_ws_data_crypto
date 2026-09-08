@@ -8,6 +8,8 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Tuple
 
+from storage_protocol import FileLock, atomic_bytes, fsync_directory, lock_path, pending_path
+
 # Configuration via environment variables
 ARCHIVER_ENABLED = os.environ.get("ARCHIVER_ENABLED", "true").lower() == "true"
 ARCHIVER_SCAN_INTERVAL_SECONDS = int(os.environ.get("ARCHIVER_SCAN_INTERVAL_SECONDS", "3600"))
@@ -50,30 +52,23 @@ def compute_sha256(path: Path) -> Tuple[str, int]:
 
 
 def write_hash_file(target: Path, hex_digest: str, size_bytes: int) -> None:
-    # Write alongside target with .sha256 extension
     hash_path = target.with_suffix(target.suffix + ".sha256")
     line = f"{hex_digest}  {target.name}  {size_bytes}\n"
-    tmp = hash_path.with_suffix(hash_path.suffix + ".part")
-    with tmp.open("w", encoding="utf-8") as f:
-        f.write(line)
-        f.flush()
-        os.fsync(f.fileno())
-    os.replace(tmp, hash_path)
+    atomic_bytes(hash_path, line.encode("utf-8"))
 
 
 def compress_xz(src_path: Path, dst_tmp_path: Path, level: int = 6) -> None:
-    # Stream compression to tmp file
-    with src_path.open("rb") as fin, lzma.open(dst_tmp_path, "wb", preset=level, check=lzma.CHECK_CRC64) as fout:
-        while True:
-            b = fin.read(CHUNK_SIZE)
-            if not b:
-                break
-            fout.write(b)
-        fout.flush()
-        # lzma handles its own checksums, but still fsync file descriptor
-        fout_fd = getattr(fout, "fileno", None)
-        if callable(fout_fd):
-            os.fsync(fout.fileno())
+    # LZMA.close() emits the footer. Keep the underlying file open until AFTER
+    # that close, then flush/fsync all compressed bytes; propagate close failures.
+    with src_path.open("rb") as fin, dst_tmp_path.open("xb") as raw:
+        with lzma.LZMAFile(raw, "wb", preset=level, check=lzma.CHECK_CRC64) as encoded:
+            while True:
+                block = fin.read(CHUNK_SIZE)
+                if not block:
+                    break
+                encoded.write(block)
+        raw.flush()
+        os.fsync(raw.fileno())
 
 
 def verify_archive(archive_path: Path, expected_hash_hex: str) -> bool:
@@ -138,73 +133,83 @@ def safe_remove(path: Path) -> None:
         logging.error(f"Failed to remove {path}: {e}")
 
 
-def process_file(src_jsonl_path: Path) -> str:
-    """
-    Returns: one of 'COMPRESSED_AND_DELETED', 'VERIFIED_EXISTING', 'SKIPPED', 'FAILED'
-    """
+def _source_signature(path: Path) -> tuple:
+    info = path.stat()
+    return (info.st_dev, info.st_ino, info.st_size, info.st_mtime_ns, info.st_ctime_ns)
+
+
+def _partial_is_stale(path: Path) -> bool:
+    modified = datetime.fromtimestamp(path.stat().st_mtime)
+    return (_now() - modified) > timedelta(minutes=ARCHIVER_MIN_AGE_MINUTES)
+
+
+def _process_locked(src_jsonl_path: Path) -> str:
+    xz_path = src_jsonl_path.with_suffix(src_jsonl_path.suffix + ".xz")
+    marker = src_jsonl_path.with_suffix(src_jsonl_path.suffix + ".verify_failed")
+    temporary = xz_path.with_suffix(xz_path.suffix + ".part")
+    if pending_path(src_jsonl_path).exists():
+        return "SKIPPED"
+    if src_jsonl_path.is_symlink() or not src_jsonl_path.is_file():
+        return "SKIPPED"
+    # The age check is NOT ownership: the shared per-file lock is held throughout.
+    # Do not truncate a recent partial or an archive left by an unknown participant.
+    if temporary.exists() and not xz_path.exists():
+        if not _partial_is_stale(temporary):
+            return "SKIPPED"
+        temporary.unlink()
+        fsync_directory(temporary.parent)
+
+    signature = _source_signature(src_jsonl_path)
+    expected, size = compute_sha256(src_jsonl_path)
+    write_hash_file(src_jsonl_path, expected, size)
+    existing = xz_path.exists()
+    candidate = xz_path if existing else temporary
+    if not existing:
+        compress_xz(src_jsonl_path, temporary, level=ARCHIVER_COMPRESSION_LEVEL)
+    # Verify complete decompression before making a NEW archive visible.
+    if not verify_archive(candidate, expected):
+        atomic_bytes(marker, f"{_now().isoformat()} hash mismatch\n".encode("utf-8"))
+        logging.error("Archive verification mismatch for %s", src_jsonl_path.name)
+        return "FAILED"
+    if _source_signature(src_jsonl_path) != signature or compute_sha256(src_jsonl_path) != (expected, size):
+        logging.error("Source changed during archive; keeping original: %s", src_jsonl_path)
+        return "FAILED"
+    if not existing:
+        os.replace(temporary, xz_path)
+    # Existing archives also need a successful fsync before deleting their source.
+    with xz_path.open("rb") as archive:
+        os.fsync(archive.fileno())
+    fsync_directory(xz_path.parent)
+    archive_digest, archive_size = compute_sha256(xz_path)
+    write_hash_file(xz_path, archive_digest, archive_size)
+    if pending_path(src_jsonl_path).exists() or _source_signature(src_jsonl_path) != signature:
+        logging.error("Source ownership changed; keeping original: %s", src_jsonl_path)
+        return "FAILED"
+    # Unlike safe_remove(), deletion failures must not be reported as success.
+    src_jsonl_path.unlink()
     try:
-        # Prepare paths
-        xz_path = src_jsonl_path.with_suffix(src_jsonl_path.suffix + ".xz")
-        xz_hash_path = xz_path.with_suffix(xz_path.suffix + ".sha256")
-        verify_failed_marker = src_jsonl_path.with_suffix(src_jsonl_path.suffix + ".verify_failed")
-        xz_tmp_path = xz_path.with_suffix(xz_path.suffix + ".part")
+        fsync_directory(src_jsonl_path.parent)
+    except OSError:
+        logging.error("Source removed but directory sync failed; durable archive retained: %s", xz_path)
+        raise
+    safe_remove(marker)
+    return "VERIFIED_EXISTING" if existing else "COMPRESSED_AND_DELETED"
 
-        # Handle stale .part
-        if xz_tmp_path.exists():
-            try:
-                # remove stale .part older than min age
-                stat = xz_tmp_path.stat()
-                if (_now() - datetime.fromtimestamp(stat.st_mtime)) > timedelta(minutes=ARCHIVER_MIN_AGE_MINUTES):
-                    logging.warning(f"Removing stale partial archive {xz_tmp_path}")
-                    safe_remove(xz_tmp_path)
-            except Exception as e:
-                logging.error(f"Error inspecting partial archive {xz_tmp_path}: {e}")
 
-        # A saved manifest may predate source edits; verify the current bytes.
-        hex_digest, size_bytes = compute_sha256(src_jsonl_path)
-        write_hash_file(src_jsonl_path, hex_digest, size_bytes)
-
-        # If archive already exists, verify and delete original if valid
-        if xz_path.exists():
-            if verify_archive(xz_path, hex_digest):
-                # ensure we have an archive hash manifest (optional informational)
-                if not xz_hash_path.exists():
-                    arch_hex, arch_size = compute_sha256(xz_path)
-                    write_hash_file(xz_path, arch_hex, arch_size)
-                # delete original jsonl
-                safe_remove(src_jsonl_path)
-                safe_remove(verify_failed_marker)
-                logging.info(f"Verified existing archive and removed original: file={src_jsonl_path.name}")
-                return "VERIFIED_EXISTING"
-            else:
-                # mark failure, keep both files
-                verify_failed_marker.write_text(f"{_now().isoformat()} hash mismatch\n", encoding="utf-8")
-                logging.error(f"Archive verification mismatch for {src_jsonl_path.name}")
-                return "FAILED"
-
-        # Create archive
-        compress_xz(src_jsonl_path, xz_tmp_path, level=ARCHIVER_COMPRESSION_LEVEL)
-        # Atomic rename
-        os.replace(xz_tmp_path, xz_path)
-
-        # Verify archive
-        if verify_archive(xz_path, hex_digest):
-            # Write archive hash manifest (informational)
-            arch_hex, arch_size = compute_sha256(xz_path)
-            write_hash_file(xz_path, arch_hex, arch_size)
-            # Delete original
-            safe_remove(src_jsonl_path)
-            safe_remove(verify_failed_marker)
-            logging.info(f"Compressed and deleted original: file={src_jsonl_path.name} saved_bytes=unknown")
-            return "COMPRESSED_AND_DELETED"
-        else:
-            # Verification failed; keep both
-            verify_failed_marker.write_text(f"{_now().isoformat()} hash mismatch\n", encoding="utf-8")
-            logging.error(f"Verification failed after compression for {src_jsonl_path.name}")
-            return "FAILED"
-
-    except Exception as e:
-        logging.error(f"Unexpected error processing {src_jsonl_path}: {e}")
+def process_file(src_jsonl_path: Path, *, require_eligible: bool = False) -> str:
+    """Serialize archive/append/read operations; never archive an uncertain batch."""
+    try:
+        with FileLock(lock_path(src_jsonl_path)):
+            # run_once's directory scan is only a hint; recheck after acquiring lock.
+            if require_eligible and not is_eligible(
+                src_jsonl_path, ARCHIVER_UNCOMPRESSED_DAYS, ARCHIVER_MIN_AGE_MINUTES
+            ):
+                return "SKIPPED"
+            return _process_locked(src_jsonl_path)
+    except BlockingIOError:
+        return "SKIPPED"
+    except Exception as error:
+        logging.error("Error processing %s: %s", src_jsonl_path, error)
         return "FAILED"
 
 
@@ -217,7 +222,7 @@ def run_once() -> None:
     logging.info(f"Archiver scan: ws_dir={ws} eligible_files={len(files)} keep_days={ARCHIVER_UNCOMPRESSED_DAYS} min_age_minutes={ARCHIVER_MIN_AGE_MINUTES}")
     for p in files:
         start = time.time()
-        result = process_file(p)
+        result = process_file(p, require_eligible=True)
         elapsed = int((time.time() - start) * 1000)
         logging.info(f"Archiver processed file={p.name} result={result} elapsed_ms={elapsed}")
 

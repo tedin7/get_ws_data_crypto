@@ -24,7 +24,9 @@ def run_test(script_name: str) -> tuple[int, str]:
     script_path = os.path.join(ROOT, "tests", script_name)
     cmd = [sys.executable, "-u", script_path]
     try:
-        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True, check=False)
+        env = {**os.environ, "PYTHONPATH": ROOT + os.pathsep + os.environ.get("PYTHONPATH", "")}
+        result = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.STDOUT, text=True,
+                                check=False, cwd=ROOT, env=env)
         return result.returncode, result.stdout
     except FileNotFoundError as e:
         return 127, f"File not found: {script_path}\n{e}"
@@ -43,6 +45,7 @@ def main():
         "test_healthcheck.py",
         "test_shutdown.py",
         "test_write_failures.py",
+        "test_storage_integrity.py",
     ]
 
     all_output = []

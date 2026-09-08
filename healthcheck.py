@@ -11,6 +11,8 @@ def healthcheck():
     if not SYMBOL:
         return False
     try:
+        if any(Path(WS_DIR_PATH).glob("*.jsonl.append.pending")):
+            return False
         latest_write = max(
             (path.stat().st_mtime for path in Path(WS_DIR_PATH).glob("price_data_*.jsonl")),
             default=0,
