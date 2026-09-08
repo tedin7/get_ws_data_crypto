@@ -1,0 +1,25 @@
+
+RUN reproduce_write_failures.py
+ERROR:root:Error saving price data: [Errno 28] synthetic partial write
+{"stage": "write", "buffer_after_failure": 2, "file_after_failure": "{\"existing\":true}\n{\"price\": 10}\n{", "occurrences_after_retry": {"10": 1, "20": 1}, "invalid_lines": ["{{\"price\": 10}"], "buffer_after_retry": 0}
+ERROR:root:Error saving price data: [Errno 28] synthetic flush error
+{"stage": "flush", "buffer_after_failure": 2, "file_after_failure": "{\"existing\":true}\n{\"price\": 10}\n{\"price\": 20}\n", "occurrences_after_retry": {"10": 2, "20": 2}, "invalid_lines": [], "buffer_after_retry": 0}
+ERROR:root:Error saving price data: [Errno 5] synthetic fsync error
+{"stage": "fsync", "buffer_after_failure": 2, "file_after_failure": "{\"existing\":true}\n{\"price\": 10}\n{\"price\": 20}\n", "occurrences_after_retry": {"10": 2, "20": 2}, "invalid_lines": [], "buffer_after_retry": 0}
+ERROR:root:Error saving price data: [Errno 5] synthetic close error
+{"stage": "close", "buffer_after_failure": 2, "file_after_failure": "{\"existing\":true}\n{\"price\": 10}\n{\"price\": 20}\n", "occurrences_after_retry": {"10": 2, "20": 2}, "invalid_lines": [], "buffer_after_retry": 0}
+
+RUN tests/test_write_failures.py
+..
+----------------------------------------------------------------------
+Ran 2 tests in 0.018s
+
+OK
+
+RUN tests/test_shutdown.py
+..WARNING:root:WebSocket disconnected (is_connected=False), triggering reconnect
+.
+----------------------------------------------------------------------
+Ran 3 tests in 0.034s
+
+OK

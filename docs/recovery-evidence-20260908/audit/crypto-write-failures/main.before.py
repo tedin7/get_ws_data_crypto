@@ -35,7 +35,6 @@ class BybitWebSocketClient:
         self.current_date = None
         self.data_buffer = []
         self.last_flush_time = datetime.now()
-        self.next_flush_attempt = 0.0
         self.ensure_data_directory()
         
         # Public mode only
@@ -68,10 +67,7 @@ class BybitWebSocketClient:
             
             self.data_buffer.append(price_entry)
             
-            if time.monotonic() >= self.next_flush_attempt and (
-                len(self.data_buffer) >= BUFFER_SIZE
-                or (datetime.now() - self.last_flush_time).seconds >= FLUSH_INTERVAL
-            ):
+            if len(self.data_buffer) >= BUFFER_SIZE or (datetime.now() - self.last_flush_time).seconds >= FLUSH_INTERVAL:
                 self.save_price_data()
         
         except KeyError:
@@ -98,8 +94,6 @@ class BybitWebSocketClient:
             logging.info(f"Saved {data_count} entries to {current_file}")
 
         except Exception as e:
-            # ponytail: prolonged errors grow the buffer; deduplication needs persistent, coordinated recovery.
-            self.next_flush_attempt = time.monotonic() + FLUSH_INTERVAL
             logging.error(f"Error saving price data: {str(e)}")
 
     def close(self):

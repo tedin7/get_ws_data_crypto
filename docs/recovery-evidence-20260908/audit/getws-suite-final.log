@@ -1,0 +1,31 @@
+
+================================================================================
+====================== PUBLIC WEBSOCKET MODE - TEST SUITE ======================
+================================================================================
+
+Started at: 2026-09-08 01:34:00
+This test suite verifies imports and core functionality without API keys.
+[OK] test_import.py
+[OK] test_main.py
+[OK] test_functionality.py
+[OK] test_archiver.py
+[OK] test_healthcheck.py
+[OK] test_shutdown.py
+
+================================================================================
+================================= TEST SUMMARY =================================
+================================================================================
+
+Completed at: 2026-09-08 01:34:03
+
+Test Results:
+Test: test_import.py, Result: OK
+Test: test_main.py, Result: OK
+Test: test_functionality.py, Result: OK
+Test: test_archiver.py, Result: OK
+Test: test_healthcheck.py, Result: OK
+Test: test_shutdown.py, Result: OK
+
+Overall Test Result: PASSED
+
+All tests passed in public mode.

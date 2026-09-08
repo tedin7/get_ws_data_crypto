@@ -1,0 +1,11 @@
+--- a/archiver.py
++++ b/archiver.py
+@@ -154,7 +154,7 @@
+             try:
+                 # remove stale .part older than min age
+                 stat = xz_tmp_path.stat()
+-                if (_now() - datetime.fromtimestamp(stat.st_mtime)) > timedelta(minutes=ARCHIVER_MIN_AGE_MINUTES):
++                if (_now() - datetime.fromtimestamp(stat.st_mtime, timezone.utc)) > timedelta(minutes=ARCHIVER_MIN_AGE_MINUTES):
+                     logging.warning(f"Removing stale partial archive {xz_tmp_path}")
+                     safe_remove(xz_tmp_path)
+             except Exception as e:

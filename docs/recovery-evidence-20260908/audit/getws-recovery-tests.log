@@ -1,0 +1,34 @@
+MemAvailable:   12915604 kB
+some avg10=0.00 avg60=0.00 avg300=5.84 total=19746889595
+full avg10=0.00 avg60=0.00 avg300=4.55 total=14996298221
+
+================================================================================
+====================== PUBLIC WEBSOCKET MODE - TEST SUITE ======================
+================================================================================
+
+Started at: 2026-09-08 02:29:50
+This test suite verifies imports and core functionality without API keys.
+[OK] test_import.py
+[OK] test_main.py
+[OK] test_functionality.py
+[OK] test_archiver.py
+[OK] test_healthcheck.py
+[OK] test_shutdown.py
+
+================================================================================
+================================= TEST SUMMARY =================================
+================================================================================
+
+Completed at: 2026-09-08 02:29:53
+
+Test Results:
+Test: test_import.py, Result: OK
+Test: test_main.py, Result: OK
+Test: test_functionality.py, Result: OK
+Test: test_archiver.py, Result: OK
+Test: test_healthcheck.py, Result: OK
+Test: test_shutdown.py, Result: OK
+
+Overall Test Result: PASSED
+
+All tests passed in public mode.

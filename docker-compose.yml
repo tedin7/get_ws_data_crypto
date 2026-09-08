@@ -6,12 +6,16 @@ services:
       context: .
       dockerfile: Dockerfile
     command: ["python", "-u", "main.py"]
+    restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 1g
+    memswap_limit: 1280m
     volumes:
       - .:/app
     env_file:
       - .env
     healthcheck:
-      test: ["CMD-SHELL", "python -c \"import sys; import main as m; sys.exit(0 if getattr(m, 'healthcheck', lambda: False)() else 1)\""]
+      test: ["CMD", "python", "healthcheck.py"]
       interval: 30s
       timeout: 10s
       retries: 5
@@ -30,3 +34,6 @@ services:
       TZ: "UTC"
     command: ["python", "-u", "archiver.py"]
     restart: unless-stopped
+    cpus: 1.0
+    mem_limit: 1g
+    memswap_limit: 1280m

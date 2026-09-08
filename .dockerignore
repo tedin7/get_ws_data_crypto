@@ -1,3 +1,5 @@
 ws_data/
 venv/
-tests/ 
+.venv/
+.git/
+tests/

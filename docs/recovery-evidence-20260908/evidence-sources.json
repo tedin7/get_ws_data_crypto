@@ -1,0 +1,80 @@
+[
+  {
+    "origine_server": "/root/reports/system-efficiency-20260908/getws-review.md",
+    "file": "audit/getws-review.md",
+    "sha256_originale": "6af827a90ad72a4e835e0110f3b24fa553b4e85a4ca87231e42aea6a8cd7da14",
+    "sha256_pubblicabile": "6af827a90ad72a4e835e0110f3b24fa553b4e85a4ca87231e42aea6a8cd7da14"
+  },
+  {
+    "origine_server": "/root/reports/system-efficiency-20260908/crypto-write-failure-review.md",
+    "file": "audit/crypto-write-failure-review.md",
+    "sha256_originale": "7ea9d99a9d2e55495f06b42ebe4d79c7cf53e49c1cb888a2c2f331015a240d7d",
+    "sha256_pubblicabile": "7ea9d99a9d2e55495f06b42ebe4d79c7cf53e49c1cb888a2c2f331015a240d7d"
+  },
+  {
+    "origine_server": "/root/reports/system-efficiency-20260908/getws-recovery-tests.log",
+    "file": "audit/getws-recovery-tests.log",
+    "sha256_originale": "4140d50782270b89f61cba1b7bd914566262372e7059ccbb3d96cb62bcc0b97e",
+    "sha256_pubblicabile": "4140d50782270b89f61cba1b7bd914566262372e7059ccbb3d96cb62bcc0b97e"
+  },
+  {
+    "origine_server": "/root/reports/system-efficiency-20260908/getws-suite-final.log",
+    "file": "audit/getws-suite-final.log",
+    "sha256_originale": "8dc48c7ad32d72a05bbc3af6dd137d7b0fa027318f958c7845242afe1b812e7e",
+    "sha256_pubblicabile": "8dc48c7ad32d72a05bbc3af6dd137d7b0fa027318f958c7845242afe1b812e7e"
+  },
+  {
+    "origine_server": "/root/reports/system-efficiency-20260908/compression-benchmark.py",
+    "file": "audit/compression-benchmark.py",
+    "sha256_originale": "fad85b74e4a9ff3b67ee4eeaa072a612aaad51abf41b811a1ffe58421fb6e36d",
+    "sha256_pubblicabile": "fad85b74e4a9ff3b67ee4eeaa072a612aaad51abf41b811a1ffe58421fb6e36d"
+  },
+  {
+    "origine_server": "/root/reports/system-efficiency-20260908/compression64-level6.json",
+    "file": "audit/compression64-level6.json",
+    "sha256_originale": "e84ea66584d75e0c54ca5bdb197180faae5f034f1505022b367a5eb42cf3e003",
+    "sha256_pubblicabile": "e84ea66584d75e0c54ca5bdb197180faae5f034f1505022b367a5eb42cf3e003"
+  },
+  {
+    "origine_server": "/root/reports/system-efficiency-20260908/compression64-level9.json",
+    "file": "audit/compression64-level9.json",
+    "sha256_originale": "320e8389b4693478a59d501959c3be4096209f2827bf1ed7d340817cb9820ebd",
+    "sha256_pubblicabile": "320e8389b4693478a59d501959c3be4096209f2827bf1ed7d340817cb9820ebd"
+  },
+  {
+    "origine_server": "/root/reports/system-efficiency-20260908/crypto-write-failures/main.before.py",
+    "file": "audit/crypto-write-failures/main.before.py",
+    "sha256_originale": "5e676aa9f1539e5f7b7b8ed850adff7b534706fbf9b74479fb628da5f22b200d",
+    "sha256_pubblicabile": "5e676aa9f1539e5f7b7b8ed850adff7b534706fbf9b74479fb628da5f22b200d"
+  },
+  {
+    "origine_server": "/root/reports/system-efficiency-20260908/crypto-write-failures/reproduce_write_failures.py",
+    "file": "audit/crypto-write-failures/reproduce_write_failures.py",
+    "sha256_originale": "b05f66533b2e61717f9fac3783869b4e52e20da2185fddcad8cf222fc7ab8988",
+    "sha256_pubblicabile": "b05f66533b2e61717f9fac3783869b4e52e20da2185fddcad8cf222fc7ab8988"
+  },
+  {
+    "origine_server": "/root/reports/system-efficiency-20260908/crypto-write-failures/checks.log",
+    "file": "audit/crypto-write-failures/checks.log",
+    "sha256_originale": "8863c95e4358e982cf159a4dade02d62cb86c7b66aa8274e3ecacc5407dcee48",
+    "sha256_pubblicabile": "8863c95e4358e982cf159a4dade02d62cb86c7b66aa8274e3ecacc5407dcee48"
+  },
+  {
+    "origine_server": "/tmp/codex-recovery-20260908/accelerazione/host/CRYPTO.md",
+    "file": "controverifica/CRYPTO.md",
+    "sha256_originale": "e845f71c360a80dfd8681590c8b3e5c7c678521ad5fed45057a8b227211612db",
+    "sha256_pubblicabile": "e845f71c360a80dfd8681590c8b3e5c7c678521ad5fed45057a8b227211612db"
+  },
+  {
+    "origine_server": "/tmp/codex-recovery-20260908/accelerazione/host/archiver-stale-part-utc.patch",
+    "file": "controverifica/archiver-stale-part-utc.patch",
+    "sha256_originale": "7d12b2e64160ea3d03b26ca74b7266362198e733dce00554454f3a5e64e8b0c7",
+    "sha256_pubblicabile": "7d12b2e64160ea3d03b26ca74b7266362198e733dce00554454f3a5e64e8b0c7"
+  },
+  {
+    "origine_server": "/tmp/codex-recovery-20260908/accelerazione/host/check_stale_part_utc.py",
+    "file": "controverifica/check_stale_part_utc.py",
+    "sha256_originale": "3c81d5ee5a87ba92629ae9e86ba97edc41c39bdb0fef54650acfaf1575478730",
+    "sha256_pubblicabile": "3c81d5ee5a87ba92629ae9e86ba97edc41c39bdb0fef54650acfaf1575478730"
+  }
+]

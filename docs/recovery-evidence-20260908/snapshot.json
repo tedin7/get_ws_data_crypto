@@ -1,0 +1,71 @@
+{
+  "repository": "get_ws_data_crypto",
+  "filone": "audit",
+  "base_commit": "39701683917ebfa49b818e9df48a5ba3705164a8",
+  "origine_server": "/root/get_ws_data_crypto",
+  "file_copiati": [
+    {
+      "file": ".dockerignore",
+      "sha256": "0281978c98e41163d5a11ffaa5faa48c2e6ff457d7eb1175555524a872cc73c3",
+      "mode": "0o644"
+    },
+    {
+      "file": "README.md",
+      "sha256": "c71c5e6dc2634ebca67a9b0f10b1a8d5a6940ba372512e4bddfe3acf2f442cc5",
+      "mode": "0o644"
+    },
+    {
+      "file": "archiver.py",
+      "sha256": "59ff7428b93427361fcb1e56df707c0f4104fad949eedaa0e45f455bb7ab2f6d",
+      "mode": "0o644"
+    },
+    {
+      "file": "docker-compose.yml",
+      "sha256": "543188463ad0fea7084570f9eb477fcb64c2be8c85784c2b67210f11b5a754f2",
+      "mode": "0o644"
+    },
+    {
+      "file": "healthcheck.py",
+      "sha256": "23fa60450011a8e438060d8f73a6d0cb4b18447cbc30559efd21850e6411bcb3",
+      "mode": "0o644"
+    },
+    {
+      "file": "main.py",
+      "sha256": "6824a5e1f03b5a04eaa4218040c48208f6b760257c078347af4012fd862f117c",
+      "mode": "0o644"
+    },
+    {
+      "file": "tests/run_all_tests.py",
+      "sha256": "e4868e81c918b6101445655f61932cffc59ca9a6707818fed555d3a642f7bd59",
+      "mode": "0o700"
+    },
+    {
+      "file": "tests/test_archiver.py",
+      "sha256": "344efd75fbe6b2d8183a6d8d8213b509bb31a6b10fff07f3ffc2de220200274d",
+      "mode": "0o644"
+    },
+    {
+      "file": "tests/test_healthcheck.py",
+      "sha256": "98e1e62f542d7fd51bc575d9ec29cf7e22e775c6882b291ad5a759a4089b3dfe",
+      "mode": "0o644"
+    },
+    {
+      "file": "tests/test_main.py",
+      "sha256": "5c29b1585a643df4c57a79e89ef3d9f27c3bcc9d9cf5b86d9a0a844d1a29bade",
+      "mode": "0o755"
+    },
+    {
+      "file": "tests/test_shutdown.py",
+      "sha256": "60b65c5874beaee33893ad2a93abaa46ca995555acd78336a74dab37314c33da",
+      "mode": "0o644"
+    },
+    {
+      "file": "tests/test_write_failures.py",
+      "sha256": "e94cf8acf940412c82cbd1dc3f2af9d0541190b4609c2bf46c5aeda21e8c150e",
+      "mode": "0o600"
+    }
+  ],
+  "esclusi": [],
+  "nota": "Snapshot di recupero, non implementazione approvata né rilascio. I file esclusi restano nella sorgente originale; i percorsi server sono riferimenti storici.",
+  "altra_origine_identica": "/root/audit-worktrees/host-20260908/collector"
+}

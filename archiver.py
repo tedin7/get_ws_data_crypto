@@ -3,16 +3,17 @@ import time
 import lzma
 import hashlib
 import logging
+from logging.handlers import RotatingFileHandler
 from datetime import datetime, timedelta, timezone
 from pathlib import Path
-from typing import Optional, Tuple
+from typing import Tuple
 
 # Configuration via environment variables
 ARCHIVER_ENABLED = os.environ.get("ARCHIVER_ENABLED", "true").lower() == "true"
 ARCHIVER_SCAN_INTERVAL_SECONDS = int(os.environ.get("ARCHIVER_SCAN_INTERVAL_SECONDS", "3600"))
 ARCHIVER_UNCOMPRESSED_DAYS = int(os.environ.get("ARCHIVER_UNCOMPRESSED_DAYS", "2"))
 ARCHIVER_MIN_AGE_MINUTES = int(os.environ.get("ARCHIVER_MIN_AGE_MINUTES", "60"))
-ARCHIVER_COMPRESSION_LEVEL = int(os.environ.get("ARCHIVER_COMPRESSION_LEVEL", "9"))
+ARCHIVER_COMPRESSION_LEVEL = int(os.environ.get("ARCHIVER_COMPRESSION_LEVEL", "6"))
 
 # Resolve WS_DIR_PATH from env or fallback to ./ws_data
 WS_DIR_PATH = Path(os.environ.get("WS_DIR_PATH", os.path.abspath("ws_data")))
@@ -22,7 +23,7 @@ LOGS_DIR.mkdir(parents=True, exist_ok=True)
 ARCHIVER_LOG_FILE = LOGS_DIR / "archiver.log"
 
 logging.basicConfig(
-    filename=str(ARCHIVER_LOG_FILE),
+    handlers=[RotatingFileHandler(ARCHIVER_LOG_FILE, maxBytes=10 * 1024 * 1024, backupCount=5)],
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s",
     datefmt="%Y-%m-%d %H:%M:%S",
@@ -60,23 +61,7 @@ def write_hash_file(target: Path, hex_digest: str, size_bytes: int) -> None:
     os.replace(tmp, hash_path)
 
 
-def parse_hash_file(hash_file: Path) -> Optional[Tuple[str, int]]:
-    try:
-        with hash_file.open("r", encoding="utf-8") as f:
-            line = f.readline().strip()
-        # format: <hex>  <basename>  <size_bytes>
-        parts = [p for p in line.split("  ") if p]
-        if len(parts) < 3:
-            return None
-        hex_digest = parts[0].strip()
-        size_bytes = int(parts[-1].strip())
-        return hex_digest, size_bytes
-    except Exception as e:
-        logging.error(f"Failed to parse hash file {hash_file}: {e}")
-        return None
-
-
-def compress_xz(src_path: Path, dst_tmp_path: Path, level: int = 9) -> None:
+def compress_xz(src_path: Path, dst_tmp_path: Path, level: int = 6) -> None:
     # Stream compression to tmp file
     with src_path.open("rb") as fin, lzma.open(dst_tmp_path, "wb", preset=level, check=lzma.CHECK_CRC64) as fout:
         while True:
@@ -159,7 +144,6 @@ def process_file(src_jsonl_path: Path) -> str:
     """
     try:
         # Prepare paths
-        jsonl_hash_path = src_jsonl_path.with_suffix(src_jsonl_path.suffix + ".sha256")
         xz_path = src_jsonl_path.with_suffix(src_jsonl_path.suffix + ".xz")
         xz_hash_path = xz_path.with_suffix(xz_path.suffix + ".sha256")
         verify_failed_marker = src_jsonl_path.with_suffix(src_jsonl_path.suffix + ".verify_failed")
@@ -176,24 +160,9 @@ def process_file(src_jsonl_path: Path) -> str:
             except Exception as e:
                 logging.error(f"Error inspecting partial archive {xz_tmp_path}: {e}")
 
-        # Initialize and, if present, load existing digest from the adjacent .sha256 file
-        hex_digest = None
-        if os.path.exists(jsonl_hash_path):
-            with open(jsonl_hash_path, "r") as hf:
-                content = hf.read().strip()
-                if content:
-                    hex_digest = content
-
-        if hex_digest:  # Cached
-            logging.debug(f"Using cached hash for {jsonl_hash_path}")
-        else:  # Preserve original hex_digest variable name for downstream logic
-            parsed = parse_hash_file(jsonl_hash_path)
-            if not parsed:
-                # re-compute if parse failed
-                hex_digest, size_bytes = compute_sha256(src_jsonl_path)
-                write_hash_file(src_jsonl_path, hex_digest, size_bytes)
-            else:
-                hex_digest, _size_bytes = parsed
+        # A saved manifest may predate source edits; verify the current bytes.
+        hex_digest, size_bytes = compute_sha256(src_jsonl_path)
+        write_hash_file(src_jsonl_path, hex_digest, size_bytes)
 
         # If archive already exists, verify and delete original if valid
         if xz_path.exists():
@@ -257,7 +226,7 @@ def main_loop() -> None:
     if not ARCHIVER_ENABLED:
         logging.info("Archiver disabled by ARCHIVER_ENABLED=false. Exiting.")
         return
-    logging.info("Archiver starting loop")
+    logging.info(f"Archiver starting loop compression_level={ARCHIVER_COMPRESSION_LEVEL}")
     while True:
         try:
             run_once()

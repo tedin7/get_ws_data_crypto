@@ -57,7 +57,7 @@ def test_venv_dependencies():
     required_packages = {
         "requests": "requests",
         "pybit": "pybit",
-        "websocket-client": "websocket-client",
+        "websocket-client": "websocket",
         "prometheus-client": "prometheus_client",
         "psutil": "psutil"
     }
