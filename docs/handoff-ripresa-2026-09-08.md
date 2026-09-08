@@ -34,6 +34,8 @@ Gli snapshot sono punti di ripresa, non branch da integrare integralmente. Il ma
 - P2: fsync precede il completamento LZMA, quindi non garantisce i byte finali prima della cancellazione del sorgente. Non è attestata una perdita reale.
 - Conservata la patch proposta per il controllo UTC degli archivi .part; non applicata al codice. Definire prima proprietà del file e coordinamento collector/archiver.
 
+Durante il push di recupero GitHub ha segnalato quattro avvisi Dependabot aperti sul ramo principale: msgpack (high, #11), idna (medium, #10), urllib3 (high, #9 e #8). Lo stato è stato verificato via API; non è una verifica della sfruttabilità nel servizio. Gli avvisi sono preesistenti al commit documentale e non sono stati corretti da questo incarico.
+
 ## Prove recuperate e loro limiti
 
 - Audit: sei script della suite verdi, poi due casi retry e tre shutdown verdi. Le prove sintetiche di write/flush/fsync/close riproducono invece i difetti aperti.
