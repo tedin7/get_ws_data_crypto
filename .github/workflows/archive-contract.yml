@@ -10,29 +10,11 @@ jobs:
   docker-runtime:
     runs-on: ubuntu-latest
     timeout-minutes: 15
-    permissions:
-      contents: write
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-      - name: Materialize the exact reviewed patch on the authorized feature branch
-        env:
-          EVENT_NAME: ${{ github.event_name }}
-          BRANCH_REF: ${{ github.ref }}
-        run: |
-          set -euo pipefail
-          patch=.github/patches/collector-contract.patch
-          if [ -f "$patch" ]; then
-            test "$EVENT_NAME" = push
-            test "$BRANCH_REF" = refs/heads/fix/docker-archive-contract-20260908
-            test "$(git hash-object "$patch")" = 406d89951953f4a416d3645b19e5e3d7744e11a0
-            git apply --check --index "$patch"
-            git apply --index "$patch"
-            git rm "$patch"
-            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: coordinate writer archiver and read-only snapshot namespace'
-            git push origin HEAD:refs/heads/fix/docker-archive-contract-20260908
-          fi
+          persist-credentials: false
       - name: Build actual collector and archiver images
         run: |
           set -euo pipefail
