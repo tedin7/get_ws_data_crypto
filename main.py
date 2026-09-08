@@ -13,7 +13,7 @@ from pybit.unified_trading import WebSocket
 
 from config import *
 from healthcheck import healthcheck
-from storage_protocol import AppendBatch, FileLock, recover_pending
+from storage_protocol import AppendBatch, FileLock, initialize_storage, recover_pending
 
 # Setup logging — file + stdout so docker logs works
 log_format = '%(asctime)s - %(levelname)s - %(message)s'
@@ -89,6 +89,7 @@ class BybitWebSocketClient:
         if self._owner is None:
             owner = FileLock(Path(WS_DIR_PATH) / ".collector.lock")
             try:
+                initialize_storage(Path(WS_DIR_PATH))
                 recovered = recover_pending(Path(WS_DIR_PATH))
             except BaseException:
                 owner.close()

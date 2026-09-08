@@ -65,6 +65,43 @@ class FileLock:
         self.close()
 
 
+# This additional anchor protects the *set* of logical day-locks. Readers hold
+# it shared across D/D+1 discovery; a new day cannot appear halfway through a
+# snapshot. Existing-day append/compression still use only their per-day lock.
+NAMESPACE_LOCK = ".archive.namespace.lock"
+
+
+def initialize_storage(directory: Path) -> None:
+    """Durably create the namespace anchor, without replacing existing inodes."""
+    with FileLock(directory / NAMESPACE_LOCK) as anchor:
+        os.fsync(anchor.file.fileno())
+        fsync_directory(directory)
+
+
+def source_lock(source: Path) -> FileLock:
+    """Acquire a mutation lock; serialize first creation with RO readers.
+
+    Namespace -> day is the only creation order. Existing anchors are NEVER
+    removed, so a normal append does not block readers of unrelated old days.
+    Every managed source must be created only after this function returns.
+    """
+    source = Path(source)
+    anchor = lock_path(source)
+    namespace = source.parent / NAMESPACE_LOCK
+    if anchor.exists() and namespace.exists():
+        return FileLock(anchor)
+    with FileLock(namespace) as gate:
+        lock = FileLock(anchor)
+        try:
+            os.fsync(gate.file.fileno())
+            os.fsync(lock.file.fileno())
+            fsync_directory(source.parent)
+        except BaseException:
+            lock.close()
+            raise
+        return lock
+
+
 def write_all(file: BinaryIO, payload: bytes) -> None:
     """Handle positive short writes; FileIO has no deferred Python write buffer."""
     view = memoryview(payload)
@@ -117,7 +154,7 @@ class AppendBatch:
 
     def _acquire(self) -> None:
         if self.lock is None:
-            self.lock = FileLock(lock_path(self.source))
+            self.lock = source_lock(self.source)
         if self.source.with_name(self.source.name + ".xz").exists():
             raise StorageConflict(f"Refusing to append to an archived day: {self.source}")
 

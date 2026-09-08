@@ -5,8 +5,8 @@ SYMBOL = "BTCUSDT"
 TESTNET = False
 
 # Directory setup
-WS_DIR = 'ws_data'
-WS_DIR_PATH = os.path.abspath(WS_DIR)
+WS_DIR_PATH = os.path.abspath(os.environ.get('WS_DIR_PATH', 'ws_data'))
+WS_DIR = WS_DIR_PATH
 os.makedirs(WS_DIR, exist_ok=True)
 
 # Logging — directories only; logging.basicConfig is called in main.py

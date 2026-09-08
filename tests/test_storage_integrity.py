@@ -195,7 +195,7 @@ class IntegrityTest(unittest.TestCase):
         batch = self.batch()
         real_sync = storage.fsync_directory
         def syncing(path):
-            if not storage.pending_path(self.source).exists():
+            if batch.committed and not storage.pending_path(self.source).exists():
                 raise OSError("cleanup directory fsync")
             real_sync(path)
         with patch.object(storage, "fsync_directory", syncing), self.assertRaises(OSError):

@@ -12,6 +12,9 @@ services:
     memswap_limit: 1280m
     volumes:
       - .:/app
+      - ./ws_data:/app/ws_data
+    environment:
+      WS_DIR_PATH: /app/ws_data
     env_file:
       - .env
     healthcheck:
@@ -32,6 +35,7 @@ services:
     environment:
       PYTHONUNBUFFERED: "1"
       TZ: "UTC"
+      WS_DIR_PATH: /app/ws_data
     command: ["python", "-u", "archiver.py"]
     restart: unless-stopped
     cpus: 1.0

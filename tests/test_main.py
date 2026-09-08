@@ -11,7 +11,7 @@ import logging
 import asyncio
 from datetime import datetime
 import importlib
-import pkg_resources
+from importlib.metadata import distributions
 
 # Add parent directory to path so we can import modules from there
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -51,8 +51,9 @@ def test_venv_dependencies():
     """Test that all required dependencies are installed in the virtual environment"""
     logger.info("Testing virtual environment dependencies")
     
-    # Use pkg_resources to check installed packages
-    installed_packages = {pkg.key for pkg in pkg_resources.working_set}
+    # Query runtime distributions using the standard library.
+    installed_packages = {dist.metadata["Name"].lower().replace("_", "-")
+                          for dist in distributions() if dist.metadata["Name"]}
     
     required_packages = {
         "requests": "requests",
@@ -97,8 +98,7 @@ if __name__ == "__main__":
         sys.exit(1)
     
     # Test main functionality
-    loop = asyncio.get_event_loop()
-    main_result = loop.run_until_complete(test_main_functionality())
+    main_result = asyncio.run(test_main_functionality())
     
     if main_result:
         print("\n✅ Main functionality test passed")

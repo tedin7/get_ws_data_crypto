@@ -8,7 +8,7 @@ from datetime import datetime, timedelta, timezone
 from pathlib import Path
 from typing import Tuple
 
-from storage_protocol import FileLock, atomic_bytes, fsync_directory, lock_path, pending_path
+from storage_protocol import atomic_bytes, fsync_directory, pending_path, source_lock
 
 # Configuration via environment variables
 ARCHIVER_ENABLED = os.environ.get("ARCHIVER_ENABLED", "true").lower() == "true"
@@ -199,7 +199,7 @@ def _process_locked(src_jsonl_path: Path) -> str:
 def process_file(src_jsonl_path: Path, *, require_eligible: bool = False) -> str:
     """Serialize archive/append/read operations; never archive an uncertain batch."""
     try:
-        with FileLock(lock_path(src_jsonl_path)):
+        with source_lock(src_jsonl_path):
             # run_once's directory scan is only a hint; recheck after acquiring lock.
             if require_eligible and not is_eligible(
                 src_jsonl_path, ARCHIVER_UNCOMPRESSED_DAYS, ARCHIVER_MIN_AGE_MINUTES

@@ -3,3 +3,7 @@ venv/
 .venv/
 .git/
 tests/
+evidence/
+__pycache__/
+.env
+.env.*
