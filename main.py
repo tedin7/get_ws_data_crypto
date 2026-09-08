@@ -70,6 +70,8 @@ class BybitWebSocketClient:
                 'price': current_price,
                 'full_data': message
             }
+            # Reject invalid JSON before it can poison the retry buffer.
+            json.dumps(price_entry, allow_nan=False)
             
             with self._buffer_lock:
                 self.data_buffer.append(price_entry)

@@ -37,6 +37,17 @@ class CollectorWriteFailureTest(unittest.TestCase):
     def tick(self, price):
         self.client.handle_ticker({"data": {"lastPrice": str(price)}})
 
+    def test_invalid_message_cannot_poison_later_valid_ticks(self):
+        with self.assertLogs(level="ERROR"):
+            for price in (float("nan"), float("inf"), float("-inf")):
+                self.tick(price)
+            self.client.handle_ticker({"data": {"lastPrice": "1"}, "other": float("nan")})
+        self.assertEqual(self.client.data_buffer, [])
+        self.tick(42)
+        self.client.close()
+        rows = [json.loads(line) for line in self.client.current_file.read_text().splitlines()]
+        self.assertEqual([row["price"] for row in rows], [42])
+
     def test_failed_writes_wait_for_deadline_and_then_recover(self):
         with patch.object(self.module.time, "monotonic", return_value=100) as now, patch.object(
             self.client, "get_current_file", side_effect=OSError("synthetic disk error")
