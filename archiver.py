@@ -139,7 +139,7 @@ def _source_signature(path: Path) -> tuple:
 
 
 def _partial_is_stale(path: Path) -> bool:
-    modified = datetime.fromtimestamp(path.stat().st_mtime)
+    modified = datetime.fromtimestamp(path.stat().st_mtime, timezone.utc)
     return (_now() - modified) > timedelta(minutes=ARCHIVER_MIN_AGE_MINUTES)
 
 

@@ -46,6 +46,7 @@ def main():
         "test_shutdown.py",
         "test_write_failures.py",
         "test_storage_integrity.py",
+        "test_archiver_utc.py",
     ]
 
     all_output = []
