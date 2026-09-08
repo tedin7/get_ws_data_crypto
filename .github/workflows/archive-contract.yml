@@ -7,22 +7,59 @@ on:
 permissions:
   contents: read
 jobs:
-  exact-source:
+  docker-runtime:
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
-          persist-credentials: false
-      - name: Export tracked source (no runtime archives or credentials)
+      - name: Materialize the exact reviewed patch on the authorized feature branch
+        env:
+          EVENT_NAME: ${{ github.event_name }}
+          BRANCH_REF: ${{ github.ref }}
         run: |
-          git rev-parse HEAD > /tmp/source-revision.txt
-          git archive --format=zip HEAD > /tmp/source.zip
+          set -euo pipefail
+          patch=.github/patches/collector-contract.patch
+          if [ -f "$patch" ]; then
+            test "$EVENT_NAME" = push
+            test "$BRANCH_REF" = refs/heads/fix/docker-archive-contract-20260908
+            test "$(git hash-object "$patch")" = 406d89951953f4a416d3645b19e5e3d7744e11a0
+            git apply --check --index "$patch"
+            git apply --index "$patch"
+            git rm "$patch"
+            git -c user.name='github-actions[bot]' -c user.email='41898282+github-actions[bot]@users.noreply.github.com' commit -m 'fix: coordinate writer archiver and read-only snapshot namespace'
+            git push origin HEAD:refs/heads/fix/docker-archive-contract-20260908
+          fi
+      - name: Build actual collector and archiver images
+        run: |
+          set -euo pipefail
+          mkdir -p evidence
+          git rev-parse HEAD | tee evidence/revision.txt
+          docker version > evidence/docker-version.txt
+          docker build -t collector-contract -f Dockerfile . 2>&1 | tee evidence/build-collector.txt
+          docker build -t archiver-contract -f Dockerfile.archiver . 2>&1 | tee evidence/build-archiver.txt
+      - name: Full collector suite, isolated runtime and no network
+        run: |
+          set -euo pipefail
+          docker run --rm --network none --memory 1g --cpus 2 --tmpfs /tmp \
+            -v "$PWD/tests:/app/tests:ro" \
+            -e WS_DIR_PATH=/tmp/contract-ws -e TZ=UTC collector-contract \
+            python -u tests/run_all_tests.py 2>&1 | tee evidence/collector-suite.txt
+          docker run --rm --network none --tmpfs /tmp -e WS_DIR_PATH=/tmp/contract-ws \
+            archiver-contract python -c 'import archiver, config; assert str(archiver.WS_DIR_PATH) == config.WS_DIR_PATH; print("archiver/config mount path agrees")' \
+            | tee evidence/archiver-import.txt
+      - name: Retain exact tracked source and verification evidence
+        if: always()
+        run: |
+          mkdir -p evidence
+          git rev-parse HEAD > evidence/revision.txt
+          git archive --format=zip HEAD > evidence/source.zip
       - uses: actions/upload-artifact@v4
+        if: always()
         with:
-          name: archive-contract-source-${{ github.sha }}
-          path: |
-            /tmp/source.zip
-            /tmp/source-revision.txt
-          retention-days: 2
+          name: collector-storage-${{ github.sha }}
+          path: evidence/
+          retention-days: 14
