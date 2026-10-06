@@ -55,3 +55,47 @@ gh api --paginate 'repos/tedin7/get_ws_data_crypto/dependabot/alerts?state=open'
 python -m pip check
 python -m pip_audit -r requirements.txt
 ```
+
+## Verified dependency update — 2026-10-06
+
+This section supersedes the historical availability and verification blockers above
+for this dependency candidate. Production and GitHub alert closure remain unverified.
+
+Base: current origin/main, b814b24c2c54ce9b953bf6919b6031fa8c4e6780.
+The isolated branch updates msgpack 1.1.2 to 1.2.1, idna 3.11 to 3.15,
+and urllib3 2.6.3 to 2.8.0. All other dependency pins are preserved.
+
+The authenticated GitHub alert API reports five open alerts:
+
+| Alert | Advisory | Fixed version selected |
+| --- | --- | --- |
+| #8 | GHSA-mf9v-mfxr-j63j | urllib3 2.8.0 (minimum 2.7.0) |
+| #9 | GHSA-qccp-gfcp-xxvc | urllib3 2.8.0 (minimum 2.7.0) |
+| #10 | GHSA-65pc-fj4g-8rjx | idna 3.15 |
+| #11 | GHSA-6v7p-g79w-8964 | msgpack 1.2.1 |
+| #12 | GHSA-gh4c-6fx4-qh6g | urllib3 2.8.0 |
+
+Verification used separate disposable virtual environments on Linux, with Python
+3.11 (CI) and Python 3.13 (the Dockerfile's Python minor version). Both passed:
+
+```sh
+python -m pip install -r requirements.txt
+python -m pip check
+python -u tests/run_all_tests.py
+```
+
+All ten test scripts passed on each interpreter. These cover imports, functionality,
+archiving, health checks, shutdown, write failures, storage integrity, UTC behavior,
+and namespace locking. pip check found no broken requirements.
+On Python 3.13, python -m pip_audit -r requirements.txt reported zero known
+vulnerabilities across all eleven runtime dependencies. Additional smoke checks
+passed for msgpack round trips, IDNA encode/decode, urllib3 URL parsing, and Requests
+preparing an internationalized hostname. No live collector or production container
+was started, and Docker images were not rebuilt.
+
+Raw logs and the alert snapshot are retained locally in
+/root/get_ws_data_crypto-dependency-evidence/. Repeat validation if requirements,
+application code, supported runtimes, or relevant environment settings change.
+The vulnerability result reflects the advisory database at verification time.
+GitHub evaluates alert closure after the change reaches its default branch;
+local verification does not establish that the alerts are closed.
