@@ -36,7 +36,7 @@ def main():
     print_header("PUBLIC WEBSOCKET MODE - TEST SUITE")
     print(f"Started at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
     print("This test suite verifies imports and core functionality without API keys.")
-    
+
     tests_to_run = [
         "test_import.py",
         "test_main.py",
@@ -45,6 +45,7 @@ def main():
         "test_healthcheck.py",
         "test_shutdown.py",
         "test_write_failures.py",
+        "test_feed_freshness.py",
         "test_storage_integrity.py",
         "test_archiver_utc.py",
         "test_namespace_lock.py",

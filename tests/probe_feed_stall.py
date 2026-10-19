@@ -11,6 +11,7 @@ import json
 from pathlib import Path
 import sys
 import tempfile
+import threading
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -19,7 +20,7 @@ class EndProbe(BaseException):
     pass
 
 
-async def scenario(kind):
+async def scenario(kind, wall_shift=0):
     with tempfile.TemporaryDirectory() as folder:
         root = Path(folder)
         (root / "logs").mkdir()
@@ -46,7 +47,8 @@ async def scenario(kind):
         class Clock:
             @staticmethod
             def now():
-                return start + timedelta(seconds=elapsed)
+                shift = wall_shift if elapsed >= 10 else 0
+                return start + timedelta(seconds=elapsed + shift)
 
         client = module.BybitWebSocketClient()
         client.last_flush_time = start
@@ -59,7 +61,8 @@ async def scenario(kind):
             client.handle_ticker({"data": {"lastPrice": "42"}})
 
         def subscribe(**kwargs):
-            tick()
+            if kind not in ("no_callback", "late_first_ticker"):
+                tick()
 
         socket = SimpleNamespace(
             ticker_stream=subscribe, is_connected=lambda: True,
@@ -71,9 +74,20 @@ async def scenario(kind):
             elapsed += seconds
             if kind == "unchanged_price":
                 tick()
+            if kind == "threaded_price":
+                callback = threading.Thread(target=tick)
+                callback.start()
+                callback.join(timeout=2)
+                if callback.is_alive():
+                    raise AssertionError("callback did not finish")
+            if kind == "late_first_ticker" and elapsed == 20:
+                tick()
+            if kind == "invalid_messages":
+                client.handle_ticker({"data": {"lastPrice": "nan"}})
             if kind == "flush_only" and elapsed == 5:
                 client.save_price_data()
-            if elapsed >= 80:
+            limit = 100 if kind == "late_first_ticker" else 80
+            if elapsed >= limit:
                 raise EndProbe()
 
         def reconnect_close():
