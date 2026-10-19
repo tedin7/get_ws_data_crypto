@@ -38,6 +38,8 @@ class BybitWebSocketClient:
         self.last_flush_time = datetime.now()
         self.next_flush_attempt = 0.0
         self._buffer_lock = threading.RLock()
+        # Keep the watchdog independent of disk I/O under the buffer lock.
+        self._receipt_lock = threading.Lock()
         self._last_ticker_received_at = None
         self._owner = None
         self._pending = None
@@ -74,10 +76,12 @@ class BybitWebSocketClient:
             # Reject invalid JSON before it can poison the retry buffer.
             json.dumps(price_entry, allow_nan=False)
 
+            # A validated callback proves receipt even while storage is busy.
+            with self._receipt_lock:
+                self._last_ticker_received_at = time.monotonic()
+
             with self._buffer_lock:
                 self.data_buffer.append(price_entry)
-                # Receipt is independent of storage success and price changes.
-                self._last_ticker_received_at = time.monotonic()
 
                 if time.monotonic() >= self.next_flush_attempt and (
                     len(self.data_buffer) >= BUFFER_SIZE
@@ -162,10 +166,8 @@ class BybitWebSocketClient:
             self._acquire_ownership()
             try:
                 # The previous callback thread has been joined by close().
-                # Start a new grace period before subscribing: subscription may
-                # immediately deliver a ticker from another thread.
-                with self._buffer_lock:
-                    connected_at = time.monotonic()
+                # Clear the old stream before constructing the new transport.
+                with self._receipt_lock:
                     self._last_ticker_received_at = None
                 # Public WebSocket (no credentials)
                 logging.info("Initializing public WebSocket (no credentials)")
@@ -178,6 +180,10 @@ class BybitWebSocketClient:
                 # Subscribe to ticker stream (public topic)
                 logging.info(f"Subscribing to public ticker stream for symbol: {SYMBOL}")
                 self.ws.ticker_stream(symbol=SYMBOL, callback=self.handle_ticker)
+
+                # Setup can block. Give a silent subscription its own grace
+                # period, without resetting an immediate valid callback.
+                connected_at = time.monotonic()
 
                 # Reset reconnect attempts on successful connection
                 reconnect_attempts = 0
@@ -192,7 +198,7 @@ class BybitWebSocketClient:
                         break
 
                     # Buffered or flushed records do not prove new reception.
-                    with self._buffer_lock:
+                    with self._receipt_lock:
                         last_received = self._last_ticker_received_at
                         idle_for = time.monotonic() - (
                             connected_at if last_received is None else last_received

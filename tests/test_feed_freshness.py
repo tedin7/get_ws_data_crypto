@@ -32,6 +32,23 @@ class FeedFreshnessTest(unittest.IsolatedAsyncioTestCase):
         result = await scenario("no_callback")
         self.assertEqual(result["reconnect_close_at_s"], 65)
 
+    async def test_slow_constructor_does_not_consume_subscription_grace(self):
+        result = await scenario("no_callback", constructor_delay=90)
+        self.assertEqual(result["reconnect_close_at_s"], 155)
+
+    async def test_slow_subscription_without_callback_gets_full_grace(self):
+        result = await scenario("no_callback", subscription_delay=90)
+        self.assertEqual(result["reconnect_close_at_s"], 155)
+
+    async def test_slow_subscription_does_not_overwrite_immediate_callback(self):
+        result = await scenario("residual_ticker", subscription_delay=90)
+        self.assertEqual(result["reconnect_close_at_s"], 95)
+
+    async def test_storage_lock_does_not_block_watchdog(self):
+        result = await scenario("storage_busy")
+        self.assertEqual(result["reconnect_close_at_s"], 65)
+        self.assertFalse(result["storage_lock_timed_out"])
+
     async def test_first_ticker_replaces_initial_grace_deadline(self):
         result = await scenario("late_first_ticker")
         self.assertEqual(result["ticks"], 1)

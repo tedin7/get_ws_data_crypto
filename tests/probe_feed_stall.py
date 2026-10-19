@@ -20,7 +20,7 @@ class EndProbe(BaseException):
     pass
 
 
-async def scenario(kind, wall_shift=0):
+async def scenario(kind, wall_shift=0, constructor_delay=0, subscription_delay=0):
     with tempfile.TemporaryDirectory() as folder:
         root = Path(folder)
         (root / "logs").mkdir()
@@ -54,6 +54,15 @@ async def scenario(kind, wall_shift=0):
         client.last_flush_time = start
         close_at = None
         ticks = 0
+        storage_release = threading.Event()
+        storage_held = threading.Event()
+        storage_timed_out = []
+        storage_worker = None
+
+        def hold_storage():
+            with client._buffer_lock:
+                storage_held.set()
+                storage_timed_out.append(not storage_release.wait(timeout=2))
 
         def tick():
             nonlocal ticks
@@ -61,17 +70,29 @@ async def scenario(kind, wall_shift=0):
             client.handle_ticker({"data": {"lastPrice": "42"}})
 
         def subscribe(**kwargs):
+            nonlocal elapsed
             if kind not in ("no_callback", "late_first_ticker"):
                 tick()
+            elapsed += subscription_delay
 
         socket = SimpleNamespace(
             ticker_stream=subscribe, is_connected=lambda: True,
             exit=lambda: None, wst=SimpleNamespace(join=lambda: None),
         )
 
-        async def sleep(seconds):
+        def websocket(**kwargs):
             nonlocal elapsed
+            elapsed += constructor_delay
+            return socket
+
+        async def sleep(seconds):
+            nonlocal elapsed, storage_worker
             elapsed += seconds
+            if kind == "storage_busy" and elapsed == 5:
+                storage_worker = threading.Thread(target=hold_storage)
+                storage_worker.start()
+                if not storage_held.wait(timeout=1):
+                    raise AssertionError("storage lock not acquired")
             if kind == "unchanged_price":
                 tick()
             if kind == "threaded_price":
@@ -86,7 +107,9 @@ async def scenario(kind, wall_shift=0):
                 client.handle_ticker({"data": {"lastPrice": "nan"}})
             if kind == "flush_only" and elapsed == 5:
                 client.save_price_data()
-            limit = 100 if kind == "late_first_ticker" else 80
+            limit = constructor_delay + subscription_delay + (
+                100 if kind == "late_first_ticker" else 80
+            )
             if elapsed >= limit:
                 raise EndProbe()
 
@@ -98,7 +121,7 @@ async def scenario(kind, wall_shift=0):
         try:
             with patch.object(module, "datetime", Clock), patch.object(
                 module.time, "monotonic", side_effect=lambda: float(elapsed)
-            ), patch.object(module, "WebSocket", return_value=socket), patch.object(
+            ), patch.object(module, "WebSocket", side_effect=websocket), patch.object(
                 module.asyncio, "sleep", sleep
             ), patch.object(client, "close", reconnect_close):
                 try:
@@ -109,6 +132,7 @@ async def scenario(kind, wall_shift=0):
                 "case": kind, "ticks": ticks, "elapsed_s": elapsed,
                 "reconnect_close_at_s": close_at,
                 "buffered": len(client.data_buffer),
+                "storage_lock_timed_out": any(storage_timed_out),
             }
             if kind == "residual_ticker":
                 # Exercise the actual shutdown path with failed durable append.
@@ -124,6 +148,11 @@ async def scenario(kind, wall_shift=0):
                 result["retry_saved_prices"] = [json.loads(row)["price"] for row in rows]
             return result
         finally:
+            storage_release.set()
+            if storage_worker is not None:
+                storage_worker.join(timeout=3)
+                if storage_worker.is_alive():
+                    raise AssertionError("storage worker did not finish")
             client.close()
             for handler in handlers:
                 handler.close()

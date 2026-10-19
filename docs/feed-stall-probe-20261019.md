@@ -83,10 +83,84 @@ di spazi finali degli hook. Il secondo controllo completo degli hook è verde
 per queste sole variazioni senza effetto sul runtime. La correzione del file
 TOML non modifica regex o allowlist.
 
-## Lavoro aperto
+## Stato al commit 6b3fc2d, prima del seguito sotto
 
 Correzione e controlli locali completati. Resta la review indipendente prima
 dell'integrazione della modifica concorrente. Il servizio di revisione dei
 passi ha risposto `monthly cap reached`; nessun nuovo incarico a pagamento
 avviato. Nessuna integrazione, push o distribuzione eseguiti. Il runtime
 produttivo, la versione installata e la stabilità live restano non verificati.
+
+## Seguito: Argon e confronto con Proxmox
+
+Consultato Argon nella [conversazione Gemini autorizzata dall'operatore](https://gemini.google.com/app/1efb6fd6bf713a65).
+La consultazione ha ricevuto una descrizione tecnica del codice pubblico, senza
+credenziali o dati di mercato. Non equivale a una review eseguita sul repository.
+
+Due rilievi sono stati riprodotti e corretti sul candidato `6b3fc2d`:
+
+- **Setup lento:** un costruttore da 90 secondi consumava la tolleranza iniziale;
+  il recupero partiva a 95 invece di 155 secondi. La tolleranza per una
+  sottoscrizione senza ticker parte ora dopo `ticker_stream`. Il reset della
+  vecchia ricezione resta prima del costruttore, così un callback immediato
+  non viene cancellato. Verificata anche sottoscrizione lenta, con e senza
+  callback immediato.
+- **Contesa con storage:** il watchdog attendeva il buffer lock occupato da un
+  thread. La fixture usa eventi e un rilascio di emergenza a due secondi:
+  prima quel rilascio era necessario, dopo il watchdog prosegue senza usarlo.
+  Un lock dedicato `_receipt_lock` protegge soltanto il timestamp; nessuna
+  scrittura su disco avviene sotto quel lock. Il callback registra una ricezione
+  valida prima di attendere il buffer lock.
+
+Argon ha anche ipotizzato che un flush lungo debba rinnovare la freschezza:
+questa indicazione non viene applicata, perché contraddice il requisito che
+misura le ricezioni. Il blocco del thread pybit durante il flush e l'attesa
+sincrona in `close` restano limiti preesistenti, non garanzie risolte qui.
+La race su un possibile reset futuro dopo il callback era ipotetica; il reset
+attuale non è collocato dopo la sottoscrizione.
+
+La suite di freschezza contiene ora 13 casi. Il test del costruttore lento e
+quello di contesa fallivano prima delle rispettive correzioni; la successiva
+prova della sottoscrizione lenta ha rilevato un ulteriore avvio prematuro del
+timer, poi corretto. Tutti gli 11 script del progetto sono nuovamente verdi
+in Python 3.13.5: `/tmp/crypto-feed-full-suite-final-review.log`.
+
+### Sorgente effettiva su Proxmox
+
+Lettura via `ssh proxmox`, senza modificare il servizio:
+
+- Container `get_ws_data_crypto-app-1`, immagine `crypto-collector:9e0da7d`,
+  avviato il 7 ottobre 2026, stato `running`, health `healthy`, Python 3.13.16.
+- Codice montato da `/root/get_ws_data_crypto/releases/crypto-20261006/source`;
+  dati separati in `/root/get_ws_data_crypto/ws_data`.
+- SHA-256 del `main.py` installato:
+  `e5d61c2867b31bb880244b74c197dffff6f5ba9e6d9a5ade7594d6aabadb8167`.
+  SHA-256 dello storage installato:
+  `38a65fb5442290144179557756cb0c35862a97e75829c91e5da4373c0a799ba2`.
+  Entrambi coincidono con gli input della base locale `9e0da7d2`.
+- Il checkout principale remoto è invece a `4e859160`, con modifiche e file
+  non tracciati preesistenti. Non è la prova del codice montato e resta intatto.
+
+L'identità della sorgente installata è quindi verificata per i due file
+interessati. Questo non prova che il difetto si sia verificato su dati reali.
+Il candidato resta separato dalla produzione; integrazione e rilascio aperti.
+
+### Prova nel runtime Proxmox
+
+Candidato copiato in `/tmp/crypto-feed-candidate-20261019` su Proxmox.
+Eseguito un container separato con l'immagine già installata, senza rete,
+filesystem in sola lettura, codice montato in sola lettura e `/tmp` volatile.
+Nessun dato produttivo montato. Comando:
+
+```sh
+docker run --rm --network none --read-only --tmpfs /tmp:rw,nosuid,nodev \
+  -v /tmp/crypto-feed-candidate-20261019:/app:ro -w /app \
+  -e WS_DIR_PATH=/tmp/ws -e PYTHONDONTWRITEBYTECODE=1 \
+  --entrypoint python crypto-collector:9e0da7d tests/run_all_tests.py
+```
+
+Uscita 0: tutti gli 11 script verdi, incluse le 13 regressioni di freschezza.
+Log locale `/tmp/crypto-proxmox-candidate-suite.log`. La prova qualifica il
+candidato nell'immagine effettiva; non costituisce un rilascio e non prova
+recupero in condizioni di rete reali. Le prove restano valide solo a codice,
+fixture, dipendenze e immagine invariati.
