@@ -39,7 +39,11 @@ def main():
         "test_import.py",
         "test_main.py",
         "test_functionality.py",
-]
+        "test_archiver.py",
+        "test_healthcheck.py",
+        "test_shutdown.py",
+        "test_write_failures.py",
+    ]
 
     all_output = []
     for test in tests_to_run:
@@ -47,6 +51,8 @@ def main():
         all_output.append((test, code, out))
         status = "OK" if code == 0 else "FAIL"
         print(f"[{status}] {test}")
+        if code != 0:
+            print(out)
 
     print_header("TEST SUMMARY")
     print(f"Completed at: {datetime.now().strftime('%Y-%m-%d %H:%M:%S')}")
@@ -61,6 +67,7 @@ def main():
         print("Fix the issues and run the tests again.")
     else:
         print("\nAll tests passed in public mode.")
+    return 0 if all_passed else 1
 
 if __name__ == "__main__":
-    main()  
+    sys.exit(main())

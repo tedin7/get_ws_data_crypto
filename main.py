@@ -1,7 +1,9 @@
 import asyncio
 import json
 import logging
+from logging.handlers import RotatingFileHandler
 import os
+import signal
 import time
 from datetime import datetime, timedelta
 from pathlib import Path
@@ -10,6 +12,7 @@ import threading
 from pybit.unified_trading import WebSocket
 
 from config import *
+from healthcheck import healthcheck
 
 # Setup logging — file + stdout so docker logs works
 log_format = '%(asctime)s - %(levelname)s - %(message)s'
@@ -20,7 +23,7 @@ logging.basicConfig(
     format=log_format,
     datefmt=log_datefmt,
     handlers=[
-        logging.FileHandler(os.path.join(WS_DIR, 'logs', 'ws_log.log')),
+        RotatingFileHandler(os.path.join(WS_DIR, 'logs', 'ws_log.log'), maxBytes=10 * 1024 * 1024, backupCount=5),
         logging.StreamHandler(),
     ],
 )
@@ -32,6 +35,7 @@ class BybitWebSocketClient:
         self.current_date = None
         self.data_buffer = []
         self.last_flush_time = datetime.now()
+        self.next_flush_attempt = 0.0
         self.ensure_data_directory()
         
         # Public mode only
@@ -64,7 +68,10 @@ class BybitWebSocketClient:
             
             self.data_buffer.append(price_entry)
             
-            if len(self.data_buffer) >= BUFFER_SIZE or (datetime.now() - self.last_flush_time).seconds >= FLUSH_INTERVAL:
+            if time.monotonic() >= self.next_flush_attempt and (
+                len(self.data_buffer) >= BUFFER_SIZE
+                or (datetime.now() - self.last_flush_time).seconds >= FLUSH_INTERVAL
+            ):
                 self.save_price_data()
         
         except KeyError:
@@ -91,7 +98,18 @@ class BybitWebSocketClient:
             logging.info(f"Saved {data_count} entries to {current_file}")
 
         except Exception as e:
+            # ponytail: prolonged errors grow the buffer; deduplication needs persistent, coordinated recovery.
+            self.next_flush_attempt = time.monotonic() + FLUSH_INTERVAL
             logging.error(f"Error saving price data: {str(e)}")
+
+    def close(self):
+        if self.ws:
+            self.ws.exit()
+            self.ws.wst.join()
+            self.ws = None
+        self.save_price_data()
+        if self.data_buffer:
+            raise RuntimeError(f"Shutdown left {len(self.data_buffer)} unsaved entries")
 
     async def run(self):
         # Public mode: no API key checks
@@ -106,6 +124,7 @@ class BybitWebSocketClient:
                 self.ws = WebSocket(
                     testnet=TESTNET,
                     channel_type="linear",
+                    restart_on_error=False,
                 )
 
                 # Subscribe to ticker stream (public topic)
@@ -116,11 +135,7 @@ class BybitWebSocketClient:
                 reconnect_attempts = 0
                 last_data_time = datetime.now()
 
-                # Keep the connection alive, but detect dead connections.
-                # pybit's internal reconnect can silently give up after DNS
-                # failures (all retries fire within ~1s, exhaust limit, then
-                # the exception is raised in pybit's thread — never reaches
-                # our except block).  We poll is_connected() to catch this.
+                # Reconnect here so pybit cannot restart a socket during close.
                 while True:
                     await asyncio.sleep(5)
 
@@ -140,12 +155,7 @@ class BybitWebSocketClient:
                 logging.error(f"WebSocket error: {str(e)}")
 
             # Clean up old connection before reconnecting
-            if self.ws:
-                try:
-                    self.ws.exit()
-                except Exception:
-                    pass
-                self.ws = None
+            self.close()
 
             reconnect_attempts += 1
             if reconnect_attempts <= MAX_RECONNECT_ATTEMPTS:
@@ -157,18 +167,20 @@ class BybitWebSocketClient:
                 await asyncio.sleep(ERROR_COOLDOWN_TIME)
                 reconnect_attempts = 0
 
-def healthcheck():
-    # Return True if runtime appears healthy; minimal check:
-    # - data directory exists
-    # - SYMBOL is a non-empty string
-    # More elaborate checks would require internal state.
+async def main():
+    client = BybitWebSocketClient()
+    loop = asyncio.get_running_loop()
+    loop.add_signal_handler(signal.SIGTERM, asyncio.current_task().cancel)
     try:
-        import os
-        from config import WS_DIR_PATH, SYMBOL
-        return bool(SYMBOL) and os.path.isdir(WS_DIR_PATH)
-    except Exception:
-        return False
+        await client.run()
+    except asyncio.CancelledError:
+        pass
+    finally:
+        try:
+            await asyncio.to_thread(client.close)
+        finally:
+            loop.remove_signal_handler(signal.SIGTERM)
+
 
 if __name__ == "__main__":
-    client = BybitWebSocketClient()
-    asyncio.run(client.run())
+    asyncio.run(main())

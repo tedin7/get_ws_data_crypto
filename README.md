@@ -8,6 +8,7 @@ Features
 - Public WebSocket (no credentials)
 - Buffered writes to JSONL with flush interval
 - Robust reconnect with backoff
+- Shutdown waits for the final WebSocket callback and flushes buffered ticks; reconnect uses the same cleanup before backoff, with pybit's internal restart disabled.
 - Tests for imports and data writing in public mode
 - Dedicated archiver process to compress and checksum historical data
 - CI and hygiene: gitleaks secret scan, Dependabot, PR/issue templates
@@ -44,18 +45,19 @@ There are two services defined in [docker-compose.yml](docker-compose.yml:1-33):
 
 - app
   - Purpose: connects to Bybit Unified V5 public websocket and writes JSONL lines.
-  - Image: python:3.11-slim (deps installed at container start).
-  - Command: installs requirements then runs ["python", "-u", "main.py"].
+  - Image: built from python:3.13-slim, with dependencies installed at build time.
+  - Command: ["python", "-u", "main.py"].
   - Volumes:
-    - ./:/app (live code mount)
-    - ./ws_data:/app/ws_data (data and logs persisted to host)
-  - Healthcheck: simple placeholder.
+    - ./:/app (live code mount, including persisted data and logs in ws_data/)
+  - Healthcheck: checks that the latest JSONL output was written within three flush intervals (at least 180 seconds), without connecting to Bybit.
+  - Restart policy: `unless-stopped` for both services.
 
 - archiver
   - Purpose: compress and checksum historical JSONL to .xz and .sha256 in ws_data.
   - Build: uses [Dockerfile.archiver](Dockerfile.archiver:1-25) (includes xz-utils).
   - Command: ["python", "-u", "archiver.py"].
   - Shares the same volumes as app.
+  - Uses XZ preset 6 by default; override with `ARCHIVER_COMPRESSION_LEVEL` in the archiver environment. Source and archive contents are checked with SHA-256 before removing the source.
 
 Common operations:
 ```bash
@@ -75,11 +77,9 @@ docker-compose down
 Dockerfiles:
 - App [Dockerfile](Dockerfile:1-13)
   - Buildable image that installs Python deps at build time and runs ["python", "main.py"].
-  - Note: current compose app service uses python:3.11-slim with runtime pip install for convenience.
-  - You can switch compose to build from this Dockerfile for reproducible, faster startups.
 
 - Archiver [Dockerfile.archiver](Dockerfile.archiver:1-25)
-  - Based on python:3.11-slim, installs xz-utils and tzdata, installs Python deps at build time, and runs ["python","-u","archiver.py"].
+  - Based on python:3.13-slim, installs xz-utils and tzdata, installs Python deps at build time, and runs ["python","-u","archiver.py"].
 
 Security and hygiene
 - Public-only; no API keys used or required
@@ -99,7 +99,8 @@ CI and repo automation
 Notes and tips
 - Logs and data paths:
   - App runtime logs: ws_data/logs/ws_log.log
-  - Archiver logs: ws_data/logs/archiver.log
+- Archiver logs: ws_data/logs/archiver.log
+  - Each file log rotates at 10 MiB with five backups. An existing oversized log is preserved as the first backup on rollover.
 - Default mode: mainnet public stream (TESTNET=False)
 - If you enable the app Dockerfile in compose, prefer setting ENV PYTHONUNBUFFERED=1 to keep logs unbuffered.
 
