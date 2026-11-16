@@ -38,11 +38,14 @@ class BybitWebSocketClient:
         self.last_flush_time = datetime.now()
         self.next_flush_attempt = 0.0
         self._buffer_lock = threading.RLock()
+        # Keep the watchdog independent of disk I/O under the buffer lock.
+        self._receipt_lock = threading.Lock()
+        self._last_ticker_received_at = None
         self._owner = None
         self._pending = None
         self._pending_count = 0
         self.ensure_data_directory()
-        
+
         # Public mode only
         logging.info("Startup mode: PUBLIC (no API keys)")
         logging.info("Public mode detected. No API key checks or email alerts will be used.")
@@ -64,7 +67,7 @@ class BybitWebSocketClient:
         try:
             current_price = float(message['data']['lastPrice'])
             timestamp = datetime.now().isoformat()
-            
+
             price_entry = {
                 'timestamp': timestamp,
                 'price': current_price,
@@ -72,16 +75,20 @@ class BybitWebSocketClient:
             }
             # Reject invalid JSON before it can poison the retry buffer.
             json.dumps(price_entry, allow_nan=False)
-            
+
+            # A validated callback proves receipt even while storage is busy.
+            with self._receipt_lock:
+                self._last_ticker_received_at = time.monotonic()
+
             with self._buffer_lock:
                 self.data_buffer.append(price_entry)
-            
+
                 if time.monotonic() >= self.next_flush_attempt and (
                     len(self.data_buffer) >= BUFFER_SIZE
                     or (datetime.now() - self.last_flush_time).seconds >= FLUSH_INTERVAL
                 ):
                     self.save_price_data()
-        
+
         except KeyError:
             logging.error(f"Unexpected message format: {message}")
         except Exception as e:
@@ -158,6 +165,10 @@ class BybitWebSocketClient:
             # Fail closed before connecting when ownership/recovery is unavailable.
             self._acquire_ownership()
             try:
+                # The previous callback thread has been joined by close().
+                # Clear the old stream before constructing the new transport.
+                with self._receipt_lock:
+                    self._last_ticker_received_at = None
                 # Public WebSocket (no credentials)
                 logging.info("Initializing public WebSocket (no credentials)")
                 self.ws = WebSocket(
@@ -170,9 +181,12 @@ class BybitWebSocketClient:
                 logging.info(f"Subscribing to public ticker stream for symbol: {SYMBOL}")
                 self.ws.ticker_stream(symbol=SYMBOL, callback=self.handle_ticker)
 
+                # Setup can block. Give a silent subscription its own grace
+                # period, without resetting an immediate valid callback.
+                connected_at = time.monotonic()
+
                 # Reset reconnect attempts on successful connection
                 reconnect_attempts = 0
-                last_data_time = datetime.now()
 
                 # Reconnect here so pybit cannot restart a socket during close.
                 while True:
@@ -183,10 +197,13 @@ class BybitWebSocketClient:
                         logging.warning("WebSocket disconnected (is_connected=False), triggering reconnect")
                         break
 
-                    # Track data freshness — if no data for 60s the stream is stale
-                    if self.data_buffer or self.last_flush_time > last_data_time:
-                        last_data_time = datetime.now()
-                    elif (datetime.now() - last_data_time).total_seconds() > 60:
+                    # Buffered or flushed records do not prove new reception.
+                    with self._receipt_lock:
+                        last_received = self._last_ticker_received_at
+                        idle_for = time.monotonic() - (
+                            connected_at if last_received is None else last_received
+                        )
+                    if idle_for > 60:
                         logging.warning("No data received for 60s, triggering reconnect")
                         break
 
