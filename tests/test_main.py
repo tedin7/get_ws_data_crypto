@@ -27,7 +27,7 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-async def test_main_functionality():
+async def main_functionality():
     """Test the main functionality without actually running the WebSocket connection"""
     logger.info("Starting test of main functionality")
     
@@ -46,6 +46,11 @@ async def test_main_functionality():
     
     logger.info("Test of main functionality completed successfully")
     return True
+
+
+def test_main_functionality():
+    """pytest runs the async check through asyncio.run (no pytest-asyncio needed)."""
+    assert asyncio.run(main_functionality()) is True
 
 def test_venv_dependencies():
     """Test that all required dependencies are installed in the virtual environment"""
@@ -98,7 +103,7 @@ if __name__ == "__main__":
         sys.exit(1)
     
     # Test main functionality
-    main_result = asyncio.run(test_main_functionality())
+    main_result = asyncio.run(main_functionality())
     
     if main_result:
         print("\n✅ Main functionality test passed")
