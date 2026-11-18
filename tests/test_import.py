@@ -17,8 +17,8 @@ logging.basicConfig(
 )
 logger = logging.getLogger(__name__)
 
-def test_import(module_name):
-    """Test if a module can be imported"""
+def check_import(module_name):
+    """Check if a module can be imported"""
     try:
         importlib.import_module(module_name)
         logger.info(f"✅ Successfully imported {module_name}")
@@ -27,8 +27,8 @@ def test_import(module_name):
         logger.error(f"❌ Failed to import {module_name}: {str(e)}")
         return False
 
-def test_file_import(file_path, module_name):
-    """Test if a file can be imported as a module"""
+def check_file_import(file_path, module_name):
+    """Check if a file can be imported as a module"""
     try:
         # Get the absolute path to the file
         abs_path = os.path.abspath(file_path)
@@ -70,7 +70,7 @@ if __name__ == "__main__":
     
     all_modules_imported = True
     for module in required_modules:
-        if not test_import(module):
+        if not check_import(module):
             all_modules_imported = False
     
     # Test importing our own modules
@@ -81,7 +81,7 @@ if __name__ == "__main__":
     
     all_files_imported = True
     for file_path, module_name in our_modules:
-        if not test_file_import(file_path, module_name):
+        if not check_file_import(file_path, module_name):
             all_files_imported = False
     
     # Print summary
